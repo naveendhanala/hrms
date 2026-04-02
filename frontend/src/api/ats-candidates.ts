@@ -1,0 +1,39 @@
+import { apiFetch } from './client';
+import type { Candidate } from '../types';
+
+const BASE = '/api/ats/candidates';
+
+export function listCandidates(params?: Record<string, string>) {
+  const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+  return apiFetch<Candidate[]>(`${BASE}${qs}`);
+}
+
+export function createCandidate(data: Partial<Candidate>) {
+  return apiFetch<Candidate>(BASE, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateCandidate(id: string, data: Partial<Candidate>) {
+  return apiFetch<Candidate>(`${BASE}/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteCandidate(id: string) {
+  return apiFetch<void>(`${BASE}/${id}`, { method: 'DELETE' });
+}
+
+export function requestOfferApproval(id: string) {
+  return apiFetch<Candidate>(`${BASE}/${id}/request-approval`, { method: 'POST' });
+}
+
+export function approveOffer(id: string) {
+  return apiFetch<Candidate>(`${BASE}/${id}/approve-offer`, { method: 'POST' });
+}
+
+export function rejectOffer(id: string) {
+  return apiFetch<Candidate>(`${BASE}/${id}/reject-offer`, { method: 'POST' });
+}

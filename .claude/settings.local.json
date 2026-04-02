@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls /Users/saroja.nidadavolu/Downloads/Product_HRMS/*.json /Users/saroja.nidadavolu/Downloads/Product_HRMS/.gitignore)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
