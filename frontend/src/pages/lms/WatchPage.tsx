@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import HRMSLayout from '../../components/shared/HRMSLayout';
+import AppLayout from '../../components/shared/AppLayout';
 import YouTubeEmbed from '../../components/lms/shared/YouTubeEmbed';
 import { getCourse } from '../../api/lms-courses';
 import { markWatched, getAttempt } from '../../api/lms-attempts';
@@ -43,17 +43,17 @@ export default function WatchPage() {
 
   if (loading) {
     return (
-      <HRMSLayout>
+      <AppLayout>
         <p className="text-gray-500">Loading...</p>
-      </HRMSLayout>
+      </AppLayout>
     );
   }
 
   if (!course) {
     return (
-      <HRMSLayout>
+      <AppLayout>
         <p className="text-gray-500">Course not found.</p>
-      </HRMSLayout>
+      </AppLayout>
     );
   }
 
@@ -61,7 +61,7 @@ export default function WatchPage() {
   const isCompleted = !!attempt?.submitted_at;
 
   return (
-    <HRMSLayout>
+    <AppLayout>
       <button onClick={() => navigate('/lms')} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium mb-4 inline-block">
         &larr; Back to Courses
       </button>
@@ -108,6 +108,6 @@ export default function WatchPage() {
           </span>
         )}
       </div>
-    </HRMSLayout>
+    </AppLayout>
   );
 }

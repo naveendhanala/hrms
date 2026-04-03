@@ -5,7 +5,7 @@ import { authenticateToken, requireRole, AuthRequest } from '../../middleware/au
 const router = Router();
 
 // GET /completions
-router.get('/completions', authenticateToken, requireRole('admin'), (req: AuthRequest, res: Response) => {
+router.get('/completions', authenticateToken, requireRole('admin', 'hr'), (req: AuthRequest, res: Response) => {
   const { course_id, user_id } = req.query;
 
   let where = "WHERE u.role = 'employee'";
@@ -35,7 +35,7 @@ router.get('/completions', authenticateToken, requireRole('admin'), (req: AuthRe
 });
 
 // GET /employees
-router.get('/employees', authenticateToken, requireRole('admin'), (req: AuthRequest, res: Response) => {
+router.get('/employees', authenticateToken, requireRole('admin', 'hr'), (req: AuthRequest, res: Response) => {
   const employees = db.prepare(
     "SELECT id, username, email, name, role FROM users WHERE role = 'employee' ORDER BY name"
   ).all();

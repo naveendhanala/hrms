@@ -10,6 +10,10 @@ import lmsCoursesRoutes from './routes/lms/courses';
 import lmsQuestionsRoutes from './routes/lms/questions';
 import lmsAttemptsRoutes from './routes/lms/attempts';
 import lmsReportsRoutes from './routes/lms/reports';
+import attendanceRoutes from './routes/attendance/attendance';
+import usersRoutes from './routes/users';
+import payrollRoutes from './routes/payroll';
+import announcementsRoutes from './routes/announcements';
 import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
@@ -26,6 +30,18 @@ app.use('/api/ats/positions', atsPositionsRoutes);
 app.use('/api/ats/candidates', atsCandidatesRoutes);
 app.use('/api/ats/feedback', atsFeedbackRoutes);
 app.use('/api/ats/report', atsReportRoutes);
+
+// Users / Employees module
+app.use('/api/users', usersRoutes);
+
+// Payroll module
+app.use('/api/payroll', payrollRoutes);
+
+// Announcements module
+app.use('/api/announcements', announcementsRoutes);
+
+// Attendance module
+app.use('/api/attendance', attendanceRoutes);
 
 // LMS module
 app.use('/api/lms/courses', lmsCoursesRoutes);

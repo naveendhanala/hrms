@@ -5,7 +5,7 @@ import { authenticateToken, requireRole, AuthRequest } from '../../middleware/au
 const router = Router();
 
 // GET /:courseId/questions
-router.get('/:courseId/questions', authenticateToken, requireRole('admin'), (req: AuthRequest, res: Response) => {
+router.get('/:courseId/questions', authenticateToken, requireRole('admin', 'hr'), (req: AuthRequest, res: Response) => {
   const questions = db.prepare(
     'SELECT * FROM questions WHERE course_id = ? ORDER BY id'
   ).all(req.params.courseId);
@@ -14,7 +14,7 @@ router.get('/:courseId/questions', authenticateToken, requireRole('admin'), (req
 });
 
 // POST /:courseId/questions
-router.post('/:courseId/questions', authenticateToken, requireRole('admin'), (req: AuthRequest, res: Response) => {
+router.post('/:courseId/questions', authenticateToken, requireRole('admin', 'hr'), (req: AuthRequest, res: Response) => {
   const course = db.prepare('SELECT id FROM courses WHERE id = ?').get(req.params.courseId);
   if (!course) {
     return res.status(404).json({ error: 'Course not found' });
@@ -35,7 +35,7 @@ router.post('/:courseId/questions', authenticateToken, requireRole('admin'), (re
 });
 
 // PUT /:courseId/questions/:id
-router.put('/:courseId/questions/:id', authenticateToken, requireRole('admin'), (req: AuthRequest, res: Response) => {
+router.put('/:courseId/questions/:id', authenticateToken, requireRole('admin', 'hr'), (req: AuthRequest, res: Response) => {
   const existing = db.prepare(
     'SELECT * FROM questions WHERE id = ? AND course_id = ?'
   ).get(req.params.id, req.params.courseId);
@@ -66,7 +66,7 @@ router.put('/:courseId/questions/:id', authenticateToken, requireRole('admin'), 
 });
 
 // DELETE /:courseId/questions/:id
-router.delete('/:courseId/questions/:id', authenticateToken, requireRole('admin'), (req: AuthRequest, res: Response) => {
+router.delete('/:courseId/questions/:id', authenticateToken, requireRole('admin', 'hr'), (req: AuthRequest, res: Response) => {
   const result = db.prepare(
     'DELETE FROM questions WHERE id = ? AND course_id = ?'
   ).run(req.params.id, req.params.courseId);

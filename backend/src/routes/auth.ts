@@ -59,7 +59,7 @@ router.get('/me', authenticateToken, (req: AuthRequest, res: Response) => {
 
 // POST /create-employee
 router.post('/create-employee', authenticateToken, requireRole('admin'), (req: AuthRequest, res: Response) => {
-  const { username, email, password, name, role } = req.body;
+  const { username, email, password, name, role, reporting_manager_id } = req.body;
 
   if (!username || !email || !password || !name) {
     return res.status(400).json({ error: 'username, email, password, and name are required' });
@@ -74,8 +74,8 @@ router.post('/create-employee', authenticateToken, requireRole('admin'), (req: A
   const userRole = role || 'employee';
 
   const result = db.prepare(
-    'INSERT INTO users (username, email, password_hash, name, role) VALUES (?, ?, ?, ?, ?)'
-  ).run(username, email, hashedPassword, name, userRole);
+    'INSERT INTO users (username, email, password_hash, name, role, reporting_manager_id) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(username, email, hashedPassword, name, userRole, reporting_manager_id ?? null);
 
   res.status(201).json({
     id: result.lastInsertRowid,

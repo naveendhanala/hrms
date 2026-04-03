@@ -59,26 +59,24 @@ export default function PositionList() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Positions</h2>
+      <div className="flex items-center gap-3 mb-4">
+        <input
+          type="text"
+          placeholder="Search positions..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="flex-1 max-w-sm border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+        />
         <button
           onClick={() => {
             setEditing(null);
             setShowForm(true);
           }}
-          className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
+          className="ml-auto px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 whitespace-nowrap"
         >
           + Add Position
         </button>
       </div>
-
-      <input
-        type="text"
-        placeholder="Search positions..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="w-full max-w-md mb-4 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-      />
 
       {loading ? (
         <p className="text-gray-500">Loading...</p>
@@ -91,7 +89,7 @@ export default function PositionList() {
               <tr>
                 {['Job ID', 'Project', 'Department', 'Role', 'Status', 'Total Req', 'HR SPOC', 'Level', 'Approval', 'Actions'].map(
                   (h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th key={h} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {h}
                     </th>
                   ),
@@ -101,19 +99,19 @@ export default function PositionList() {
             <tbody className="divide-y divide-gray-200">
               {filtered.map((p) => (
                 <tr key={p.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{p.job_id}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{p.project}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{p.department}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{p.role}</td>
-                  <td className="px-4 py-3 text-sm">
+                  <td className="px-3 py-2 text-sm font-medium text-gray-900">{p.job_id}</td>
+                  <td className="px-3 py-2 text-sm text-gray-600">{p.project}</td>
+                  <td className="px-3 py-2 text-sm text-gray-600">{p.department}</td>
+                  <td className="px-3 py-2 text-sm text-gray-600">{p.role}</td>
+                  <td className="px-3 py-2 text-sm">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                       {p.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{p.total_req}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{p.hr_spoc}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{p.level}</td>
-                  <td className="px-4 py-3 text-sm">
+                  <td className="px-3 py-2 text-sm text-gray-600">{p.total_req}</td>
+                  <td className="px-3 py-2 text-sm text-gray-600">{p.hr_spoc}</td>
+                  <td className="px-3 py-2 text-sm text-gray-600">{p.level}</td>
+                  <td className="px-3 py-2 text-sm">
                     <span
                       className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                         p.approval_status === 'approved'
@@ -128,7 +126,7 @@ export default function PositionList() {
                       {p.approval_status || 'N/A'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm">
+                  <td className="px-3 py-2 text-sm">
                     <div className="flex gap-2">
                       <button
                         onClick={() => {

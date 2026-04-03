@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import HRMSLayout from '../../components/shared/HRMSLayout';
+import AppLayout from '../../components/shared/AppLayout';
 import { getQuiz, submitQuiz } from '../../api/lms-attempts';
 import type { Question } from '../../types';
 
@@ -39,7 +39,7 @@ export default function QuizPage() {
   };
 
   if (loading) {
-    return <HRMSLayout><p className="text-gray-500">Loading quiz...</p></HRMSLayout>;
+    return <AppLayout><p className="text-gray-500">Loading quiz...</p></AppLayout>;
   }
 
   if (result) {
@@ -47,7 +47,7 @@ export default function QuizPage() {
     const passed = pct >= 70;
 
     return (
-      <HRMSLayout>
+      <AppLayout>
         <div className="max-w-lg mx-auto text-center py-12">
           <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 ${passed ? 'bg-green-100' : 'bg-red-100'}`}>
             <span className={`text-4xl font-bold ${passed ? 'text-green-600' : 'text-red-600'}`}>{pct}%</span>
@@ -66,14 +66,14 @@ export default function QuizPage() {
             Back to Courses
           </button>
         </div>
-      </HRMSLayout>
+      </AppLayout>
     );
   }
 
   const answeredCount = Object.keys(answers).length;
 
   return (
-    <HRMSLayout>
+    <AppLayout>
       <button onClick={() => navigate(`/lms/courses/${id}/watch`)} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium mb-4 inline-block">
         &larr; Back to Course
       </button>
@@ -137,6 +137,6 @@ export default function QuizPage() {
           {submitting ? 'Submitting...' : 'Submit Quiz'}
         </button>
       </div>
-    </HRMSLayout>
+    </AppLayout>
   );
 }

@@ -116,6 +116,121 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_positions_job    ON positions(job_id);
 `);
 
+// ── Attendance tables ────────────────────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS attendance (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES users(id),
+    date        TEXT    NOT NULL,
+    check_in    TEXT,
+    check_out   TEXT,
+    status      TEXT    NOT NULL DEFAULT 'present',
+    work_hours  REAL,
+    notes       TEXT    NOT NULL DEFAULT '',
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(user_id, date)
+  );
+
+  CREATE TABLE IF NOT EXISTS leaves (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL REFERENCES users(id),
+    start_date   TEXT    NOT NULL,
+    end_date     TEXT    NOT NULL,
+    type         TEXT    NOT NULL DEFAULT 'casual',
+    reason       TEXT    NOT NULL DEFAULT '',
+    status       TEXT    NOT NULL DEFAULT 'pending',
+    reviewed_by  INTEGER REFERENCES users(id),
+    reviewed_at  TEXT,
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_attendance_user ON attendance(user_id);
+  CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date);
+  CREATE INDEX IF NOT EXISTS idx_leaves_user     ON leaves(user_id);
+`);
+
+// ── Announcements table ──────────────────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS announcements (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id),
+    content    TEXT    NOT NULL,
+    created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_announcements_user ON announcements(user_id);
+`);
+
+// ── Salary master ────────────────────────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS salary_master (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id  INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    basic_salary REAL    NOT NULL DEFAULT 0,
+    allowances   REAL    NOT NULL DEFAULT 0,
+    deductions   REAL    NOT NULL DEFAULT 0,
+    updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_salary_master_employee ON salary_master(employee_id);
+`);
+
+// ── Payroll tables ───────────────────────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS payroll_runs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    month       INTEGER NOT NULL,
+    year        INTEGER NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','processed','paid')),
+    created_by  INTEGER NOT NULL REFERENCES users(id),
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(month, year)
+  );
+
+  CREATE TABLE IF NOT EXISTS payroll_records (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id        INTEGER NOT NULL REFERENCES payroll_runs(id) ON DELETE CASCADE,
+    employee_id   INTEGER NOT NULL REFERENCES users(id),
+    basic_salary  REAL NOT NULL DEFAULT 0,
+    allowances    REAL NOT NULL DEFAULT 0,
+    deductions    REAL NOT NULL DEFAULT 0,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(run_id, employee_id)
+  );
+`);
+
+// ── Add columns to users if missing ─────────────────────────────────────────
+const usersCols = db.prepare("PRAGMA table_info(users)").all() as any[];
+const addCol = (col: string, def: string) => {
+  if (!usersCols.some((c: any) => c.name === col)) {
+    db.exec(`ALTER TABLE users ADD COLUMN ${col} ${def}`);
+  }
+};
+addCol('reporting_manager_id', 'INTEGER REFERENCES users(id)');
+addCol('emp_id',   'TEXT');
+addCol('dob',      'TEXT');
+addCol('project',  'TEXT NOT NULL DEFAULT \'\'');
+addCol('location', 'TEXT NOT NULL DEFAULT \'\'');
+addCol('status',   'TEXT NOT NULL DEFAULT \'active\'');
+
+// ── Remove moderator role if present (cleanup migration) ────────────────────
+const usersTableDef = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get() as any;
+if (usersTableDef && usersTableDef.sql.includes('moderator')) {
+  db.exec('PRAGMA foreign_keys = OFF');
+  db.prepare("DELETE FROM users WHERE role = 'moderator'").run();
+  db.exec('DROP TABLE IF EXISTS users_new');
+  db.exec('CREATE TABLE users_new (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN (\'admin\',\'hr\',\'director\',\'projectlead\',\'businesshead\',\'employee\')), created_at TEXT NOT NULL DEFAULT (datetime(\'now\')))');
+  db.exec('INSERT INTO users_new SELECT * FROM users');
+  db.exec('DROP TABLE users');
+  db.exec('ALTER TABLE users_new RENAME TO users');
+  db.exec('PRAGMA foreign_keys = ON');
+  console.log('Removed moderator role from users table');
+}
+
 // ── Seed default users on first run ─────────────────────────────────────────
 const adminExists = db.prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1").get();
 if (!adminExists) {

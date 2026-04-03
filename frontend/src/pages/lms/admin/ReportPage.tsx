@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import HRMSLayout from '../../../components/shared/HRMSLayout';
+import AppLayout from '../../../components/shared/AppLayout';
 import { getCompletionReport } from '../../../api/lms-reports';
 import type { CompletionReport } from '../../../types';
 
@@ -33,7 +33,7 @@ export default function LmsReportPage() {
   };
 
   return (
-    <HRMSLayout>
+    <AppLayout>
       <button onClick={() => navigate('/lms/admin')} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium mb-4 inline-block">
         &larr; Back to Dashboard
       </button>
@@ -98,6 +98,6 @@ export default function LmsReportPage() {
           </table>
         </div>
       )}
-    </HRMSLayout>
+    </AppLayout>
   );
 }

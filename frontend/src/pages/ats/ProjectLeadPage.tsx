@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import HRMSLayout from '../../components/shared/HRMSLayout';
+import AppLayout from '../../components/shared/AppLayout';
 import PositionRequestForm from '../../components/ats/projectlead/PositionRequestForm';
 import { listPositions } from '../../api/ats-positions';
 import type { Position } from '../../types';
@@ -19,7 +19,7 @@ export default function ProjectLeadPage() {
   }, []);
 
   return (
-    <HRMSLayout>
+    <AppLayout>
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-1">Project Lead Dashboard</h1>
         <p className="text-gray-500">Applicant Tracking System</p>
@@ -89,6 +89,6 @@ export default function ProjectLeadPage() {
           )}
         </div>
       )}
-    </HRMSLayout>
+    </AppLayout>
   );
 }

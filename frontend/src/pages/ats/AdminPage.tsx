@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import HRMSLayout from '../../components/shared/HRMSLayout';
+import AppLayout from '../../components/shared/AppLayout';
 import PositionList from '../../components/ats/admin/PositionList';
 import AdminCandidateList from '../../components/ats/admin/AdminCandidateList';
 
@@ -9,13 +9,8 @@ export default function AdminPage() {
   const [tab, setTab] = useState<Tab>('positions');
 
   return (
-    <HRMSLayout>
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-1">Admin Dashboard</h1>
-        <p className="text-gray-500">Applicant Tracking System</p>
-      </div>
-
-      <div className="flex gap-1 mb-6 border-b border-gray-200">
+    <AppLayout>
+      <div className="flex gap-1 mb-4 border-b border-gray-200">
         <button
           onClick={() => setTab('positions')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -36,6 +31,6 @@ export default function AdminPage() {
 
       {tab === 'positions' && <PositionList />}
       {tab === 'candidates' && <AdminCandidateList />}
-    </HRMSLayout>
+    </AppLayout>
   );
 }

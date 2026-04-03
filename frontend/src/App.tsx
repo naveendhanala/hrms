@@ -3,6 +3,10 @@ import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/shared/ProtectedRoute';
 
 import LoginPage from './pages/LoginPage';
+import Dashboard from './pages/Dashboard';
+import EmployeesPage from './pages/EmployeesPage';
+import PayrollPage from './pages/PayrollPage';
+import AttendancePage from './pages/attendance/AttendancePage';
 import FeedbackPage from './pages/ats/FeedbackPage';
 
 import AdminPage from './pages/ats/AdminPage';
@@ -24,6 +28,10 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee']}><Dashboard /></ProtectedRoute>} />
+          <Route path="/attendance" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee']}><AttendancePage /></ProtectedRoute>} />
+          <Route path="/employees" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><EmployeesPage /></ProtectedRoute>} />
+          <Route path="/payroll" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><PayrollPage /></ProtectedRoute>} />
           <Route path="/feedback" element={<FeedbackPage />} />
 
           {/* ATS routes */}
@@ -37,10 +45,11 @@ export default function App() {
           <Route path="/lms" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee']}><EmployeeDashboard /></ProtectedRoute>} />
           <Route path="/lms/courses/:id/watch" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee']}><WatchPage /></ProtectedRoute>} />
           <Route path="/lms/courses/:id/quiz" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee']}><QuizPage /></ProtectedRoute>} />
-          <Route path="/lms/admin" element={<ProtectedRoute allowedRoles={['admin']}><LmsAdminDashboard /></ProtectedRoute>} />
-          <Route path="/lms/admin/courses/:id" element={<ProtectedRoute allowedRoles={['admin']}><ManageCoursePage /></ProtectedRoute>} />
-          <Route path="/lms/admin/reports" element={<ProtectedRoute allowedRoles={['admin']}><LmsReportPage /></ProtectedRoute>} />
+          <Route path="/lms/admin" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><LmsAdminDashboard /></ProtectedRoute>} />
+          <Route path="/lms/admin/courses/:id" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><ManageCoursePage /></ProtectedRoute>} />
+          <Route path="/lms/admin/reports" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><LmsReportPage /></ProtectedRoute>} />
 
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </AuthProvider>

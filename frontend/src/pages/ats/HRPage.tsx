@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import HRMSLayout from '../../components/shared/HRMSLayout';
+import AppLayout from '../../components/shared/AppLayout';
 import CandidateList from '../../components/ats/hr/CandidateList';
 import PipelineView from '../../components/ats/hr/PipelineView';
 import ReportView from '../../components/ats/hr/ReportView';
@@ -10,7 +10,7 @@ export default function HRPage() {
   const [tab, setTab] = useState<Tab>('candidates');
 
   return (
-    <HRMSLayout>
+    <AppLayout>
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-1">HR Dashboard</h1>
         <p className="text-gray-500">Applicant Tracking System</p>
@@ -33,6 +33,6 @@ export default function HRPage() {
       {tab === 'candidates' && <CandidateList />}
       {tab === 'pipeline' && <PipelineView />}
       {tab === 'reports' && <ReportView />}
-    </HRMSLayout>
+    </AppLayout>
   );
 }

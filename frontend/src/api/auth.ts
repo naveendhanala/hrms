@@ -17,6 +17,7 @@ export function createEmployee(data: {
   email: string;
   password: string;
   name: string;
+  reporting_manager_id?: number | null;
 }) {
   return apiFetch<AuthUser>('/api/auth/create-employee', {
     method: 'POST',

@@ -45,7 +45,7 @@ router.get('/:id', authenticateToken, (req: AuthRequest, res: Response) => {
 });
 
 // POST /
-router.post('/', authenticateToken, requireRole('admin'), (req: AuthRequest, res: Response) => {
+router.post('/', authenticateToken, requireRole('admin', 'hr'), (req: AuthRequest, res: Response) => {
   const { title, description, youtube_url } = req.body;
 
   if (!title || !youtube_url) {
@@ -61,7 +61,7 @@ router.post('/', authenticateToken, requireRole('admin'), (req: AuthRequest, res
 });
 
 // PUT /:id
-router.put('/:id', authenticateToken, requireRole('admin'), (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticateToken, requireRole('admin', 'hr'), (req: AuthRequest, res: Response) => {
   const existing = db.prepare('SELECT * FROM courses WHERE id = ?').get(req.params.id);
   if (!existing) {
     return res.status(404).json({ error: 'Course not found' });
@@ -84,7 +84,7 @@ router.put('/:id', authenticateToken, requireRole('admin'), (req: AuthRequest, r
 });
 
 // DELETE /:id
-router.delete('/:id', authenticateToken, requireRole('admin'), (req: AuthRequest, res: Response) => {
+router.delete('/:id', authenticateToken, requireRole('admin', 'hr'), (req: AuthRequest, res: Response) => {
   const existing = db.prepare('SELECT * FROM courses WHERE id = ?').get(req.params.id);
   if (!existing) {
     return res.status(404).json({ error: 'Course not found' });

@@ -1,14 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createEmployee } from '../../../api/auth';
+import { getManagers, type Manager } from '../../../api/users';
 
-export default function CreateEmployeeForm() {
+export default function CreateEmployeeForm({ onSuccess }: { onSuccess?: () => void }) {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [managerId, setManagerId] = useState<number | null>(null);
+  const [managers, setManagers] = useState<Manager[]>([]);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    getManagers().then(setManagers).catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,12 +23,14 @@ export default function CreateEmployeeForm() {
     setError('');
     setSuccess('');
     try {
-      await createEmployee({ username, email, password, name });
+      await createEmployee({ username, email, password, name, reporting_manager_id: managerId });
       setSuccess(`Employee "${name}" created successfully!`);
       setUsername('');
       setEmail('');
       setPassword('');
       setName('');
+      setManagerId(null);
+      onSuccess?.();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create employee');
     } finally {
@@ -82,6 +91,21 @@ export default function CreateEmployeeForm() {
             required
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Reporting Manager</label>
+          <select
+            value={managerId ?? ''}
+            onChange={(e) => setManagerId(e.target.value ? Number(e.target.value) : null)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          >
+            <option value="">— None —</option>
+            {managers.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name} ({m.role})
+              </option>
+            ))}
+          </select>
         </div>
         <button
           type="submit"

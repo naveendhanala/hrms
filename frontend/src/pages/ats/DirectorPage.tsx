@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import HRMSLayout from '../../components/shared/HRMSLayout';
+import AppLayout from '../../components/shared/AppLayout';
 import { listCandidates, approveOffer, rejectOffer } from '../../api/ats-candidates';
 import type { Candidate } from '../../types';
 import ReportView from '../../components/ats/hr/ReportView';
@@ -40,7 +40,7 @@ export default function DirectorPage() {
   };
 
   return (
-    <HRMSLayout>
+    <AppLayout>
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-1">Director Dashboard</h1>
         <p className="text-gray-500">Applicant Tracking System</p>
@@ -109,6 +109,6 @@ export default function DirectorPage() {
       )}
 
       {tab === 'reports' && <ReportView />}
-    </HRMSLayout>
+    </AppLayout>
   );
 }

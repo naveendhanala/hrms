@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import HRMSLayout from '../../../components/shared/HRMSLayout';
+import AppLayout from '../../../components/shared/AppLayout';
 import Modal from '../../../components/shared/Modal';
 import ConfirmDialog from '../../../components/shared/ConfirmDialog';
 import QuestionForm from '../../../components/lms/admin/QuestionForm';
@@ -60,17 +60,17 @@ export default function ManageCoursePage() {
   };
 
   if (loading) {
-    return <HRMSLayout><p className="text-gray-500">Loading...</p></HRMSLayout>;
+    return <AppLayout><p className="text-gray-500">Loading...</p></AppLayout>;
   }
 
   if (!course) {
-    return <HRMSLayout><p className="text-gray-500">Course not found.</p></HRMSLayout>;
+    return <AppLayout><p className="text-gray-500">Course not found.</p></AppLayout>;
   }
 
   const OPTION_LABELS: Record<string, string> = { a: 'A', b: 'B', c: 'C', d: 'D' };
 
   return (
-    <HRMSLayout>
+    <AppLayout>
       <button onClick={() => navigate('/lms/admin')} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium mb-4 inline-block">
         &larr; Back to Courses
       </button>
@@ -168,6 +168,6 @@ export default function ManageCoursePage() {
         onConfirm={handleDelete}
         onCancel={() => setDeleting(null)}
       />
-    </HRMSLayout>
+    </AppLayout>
   );
 }

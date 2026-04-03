@@ -2,12 +2,12 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import type { AuthUser, UserRole } from '../types';
 
 export const ROLE_ROUTES: Record<UserRole, string> = {
-  admin: '/ats/admin',
-  hr: '/ats/hr',
-  director: '/ats/director',
-  projectlead: '/ats/project-lead',
-  businesshead: '/ats/business-head',
-  employee: '/lms',
+  admin: '/dashboard',
+  hr: '/dashboard',
+  director: '/dashboard',
+  projectlead: '/dashboard',
+  businesshead: '/dashboard',
+  employee: '/dashboard',
 };
 
 interface AuthContextType {

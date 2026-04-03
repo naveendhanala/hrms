@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import HRMSLayout from '../../../components/shared/HRMSLayout';
+import AppLayout from '../../../components/shared/AppLayout';
 import Modal from '../../../components/shared/Modal';
 import ConfirmDialog from '../../../components/shared/ConfirmDialog';
 import CourseForm from '../../../components/lms/admin/CourseForm';
-import CreateEmployeeForm from '../../../components/lms/admin/CreateEmployeeForm';
 import { listCourses, createCourse, updateCourse, deleteCourse } from '../../../api/lms-courses';
 import type { Course } from '../../../types';
 
@@ -12,7 +11,6 @@ export default function LmsAdminDashboard() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCourseForm, setShowCourseForm] = useState(false);
-  const [showEmployeeForm, setShowEmployeeForm] = useState(false);
   const [editing, setEditing] = useState<Course | null>(null);
   const [deleting, setDeleting] = useState<Course | null>(null);
   const navigate = useNavigate();
@@ -55,10 +53,10 @@ export default function LmsAdminDashboard() {
   };
 
   return (
-    <HRMSLayout>
+    <AppLayout>
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-1">LMS Admin Dashboard</h1>
-        <p className="text-gray-500">Manage courses and employees</p>
+        <p className="text-gray-500">Manage courses</p>
       </div>
 
       <div className="flex gap-3 mb-6">
@@ -72,16 +70,16 @@ export default function LmsAdminDashboard() {
           + Add Course
         </button>
         <button
-          onClick={() => setShowEmployeeForm(true)}
-          className="px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-100 rounded-lg hover:bg-indigo-200"
-        >
-          + Add Employee
-        </button>
-        <button
           onClick={() => navigate('/lms/admin/reports')}
           className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
         >
           View Reports
+        </button>
+        <button
+          onClick={() => navigate('/lms')}
+          className="px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-50 rounded-lg hover:bg-indigo-100"
+        >
+          My Learning
         </button>
       </div>
 
@@ -156,10 +154,6 @@ export default function LmsAdminDashboard() {
         />
       </Modal>
 
-      <Modal open={showEmployeeForm} onClose={() => setShowEmployeeForm(false)} title="Add Employee">
-        <CreateEmployeeForm />
-      </Modal>
-
       <ConfirmDialog
         open={!!deleting}
         title="Delete Course"
@@ -168,6 +162,6 @@ export default function LmsAdminDashboard() {
         onConfirm={handleDelete}
         onCancel={() => setDeleting(null)}
       />
-    </HRMSLayout>
+    </AppLayout>
   );
 }

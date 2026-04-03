@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import HRMSLayout from '../../components/shared/HRMSLayout';
+import AppLayout from '../../components/shared/AppLayout';
 import { listCourses } from '../../api/lms-courses';
 import type { Course } from '../../types';
 
@@ -19,7 +19,7 @@ export default function EmployeeDashboard() {
   const completed = courses.filter((c) => c.attempt?.submitted_at).length;
 
   return (
-    <HRMSLayout>
+    <AppLayout>
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-1">My Courses</h1>
         <p className="text-gray-500">
@@ -70,6 +70,6 @@ export default function EmployeeDashboard() {
           })}
         </div>
       )}
-    </HRMSLayout>
+    </AppLayout>
   );
 }

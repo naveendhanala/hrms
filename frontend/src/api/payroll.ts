@@ -1,0 +1,87 @@
+import { apiFetch } from './client';
+
+export interface PayrollRecord {
+  id: number;
+  run_id: number;
+  employee_id: number;
+  employee_name: string;
+  employee_role: string;
+  manager_name: string | null;
+  basic_salary: number;
+  allowances: number;
+  deductions: number;
+  gross_salary: number;
+  net_salary: number;
+}
+
+export interface PayrollRun {
+  id: number;
+  month: number;
+  year: number;
+  status: 'draft' | 'processed' | 'paid';
+  created_by_name: string;
+  created_at: string;
+  records: PayrollRecord[];
+}
+
+export interface PayrollHistoryItem {
+  id: number;
+  month: number;
+  year: number;
+  status: 'draft' | 'processed' | 'paid';
+  created_by_name: string;
+  created_at: string;
+  employee_count: number;
+  total_net: number | null;
+}
+
+export interface SalaryMasterEntry {
+  employee_id: number;
+  employee_name: string;
+  employee_role: string;
+  basic_salary: number;
+  allowances: number;
+  deductions: number;
+  updated_at: string | null;
+}
+
+const BASE = '/api/payroll';
+
+export const getPayrollRun = (month: number, year: number) =>
+  apiFetch<PayrollRun | null>(`${BASE}?month=${month}&year=${year}`);
+
+export const getPayrollHistory = () =>
+  apiFetch<PayrollHistoryItem[]>(`${BASE}/history`);
+
+export const generatePayroll = (month: number, year: number) =>
+  apiFetch<{ id: number }>(`${BASE}`, {
+    method: 'POST',
+    body: JSON.stringify({ month, year }),
+  });
+
+export const updatePayrollRecord = (
+  recordId: number,
+  data: { basic_salary: number; allowances: number; deductions: number }
+) =>
+  apiFetch<{ ok: boolean }>(`${BASE}/records/${recordId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+
+export const updatePayrollStatus = (runId: number, status: 'processed' | 'paid') =>
+  apiFetch<{ ok: boolean }>(`${BASE}/${runId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+
+export const getSalaryMaster = () =>
+  apiFetch<SalaryMasterEntry[]>(`${BASE}/salary-master`);
+
+export const updateSalaryMaster = (
+  userId: number,
+  data: { basic_salary: number; allowances: number; deductions: number }
+) =>
+  apiFetch<{ ok: boolean }>(`${BASE}/salary-master/${userId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
