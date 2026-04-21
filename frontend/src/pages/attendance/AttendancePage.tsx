@@ -12,7 +12,7 @@ type Tab = 'summary' | 'overview' | 'history' | 'leaves' | 'all-attendance' | 'm
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-function downloadCSV(filename: string, headers: string[], rows: (string | number | null)[]) {
+function downloadCSV(filename: string, headers: string[], rows: (string | number | null | undefined)[][]) {
   const escape = (v: string | number | null) => {
     const s = v == null ? '' : String(v);
     return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;

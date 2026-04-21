@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import AppLayout from '../components/shared/AppLayout';
 import {
   getPayrollRun, getPayrollHistory, generatePayroll, regeneratePayroll,
@@ -29,6 +29,11 @@ function StatusBadge({ status }: { status: 'draft' | 'processed' | 'paid' }) {
 }
 
 const PROF_TAX = 200;
+
+const inputStyle: React.CSSProperties = {
+  width: '90px', padding: '4px 6px', border: '1px solid #d1d5db',
+  borderRadius: 6, fontSize: 13, textAlign: 'right' as const,
+};
 
 type SMEditMap = Record<number, { basic_salary: string; meal_allowance: string; fuel_allowance: string; driver_allowance: string }>;
 
@@ -65,8 +70,8 @@ export default function PayrollPage() {
     try {
       const data = await getPayrollRun(month, year);
       setRun(data);
-      setEdits({});
-      setEditingRow(null);
+      setSmEdits({});
+      setSmEditingRow(null);
     } finally { setLoading(false); }
   }, [month, year]);
 
