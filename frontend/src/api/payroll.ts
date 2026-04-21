@@ -4,6 +4,7 @@ export interface PayrollRecord {
   id: number;
   run_id: number;
   employee_id: number;
+  emp_id: string | null;
   employee_name: string;
   employee_role: string;
   manager_name: string | null;
@@ -12,6 +13,12 @@ export interface PayrollRecord {
   deductions: number;
   gross_salary: number;
   net_salary: number;
+  working_days: number;
+  present_days: number;
+  leave_days: number;
+  absent_days: number;
+  lop_days: number;
+  lop_deduction: number;
 }
 
 export interface PayrollRun {
@@ -37,10 +44,13 @@ export interface PayrollHistoryItem {
 
 export interface SalaryMasterEntry {
   employee_id: number;
+  emp_id: string | null;
   employee_name: string;
   employee_role: string;
   basic_salary: number;
-  allowances: number;
+  meal_allowance: number;
+  fuel_allowance: number;
+  driver_allowance: number;
   deductions: number;
   updated_at: string | null;
 }
@@ -68,6 +78,9 @@ export const updatePayrollRecord = (
     body: JSON.stringify(data),
   });
 
+export const regeneratePayroll = (runId: number) =>
+  apiFetch<{ ok: boolean }>(`${BASE}/${runId}/regenerate`, { method: 'POST' });
+
 export const updatePayrollStatus = (runId: number, status: 'processed' | 'paid') =>
   apiFetch<{ ok: boolean }>(`${BASE}/${runId}/status`, {
     method: 'PATCH',
@@ -79,7 +92,7 @@ export const getSalaryMaster = () =>
 
 export const updateSalaryMaster = (
   userId: number,
-  data: { basic_salary: number; allowances: number; deductions: number }
+  data: { basic_salary: number; meal_allowance: number; fuel_allowance: number; driver_allowance: number; deductions: number }
 ) =>
   apiFetch<{ ok: boolean }>(`${BASE}/salary-master/${userId}`, {
     method: 'PUT',

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import AppLayout from '../components/shared/AppLayout';
 import {
-  getPayrollRun, getPayrollHistory, generatePayroll,
-  updatePayrollRecord, updatePayrollStatus,
+  getPayrollRun, getPayrollHistory, generatePayroll, regeneratePayroll,
+  updatePayrollStatus,
   getSalaryMaster, updateSalaryMaster,
   type PayrollRun, type PayrollRecord, type PayrollHistoryItem, type SalaryMasterEntry,
 } from '../api/payroll';
@@ -28,8 +28,9 @@ function StatusBadge({ status }: { status: 'draft' | 'processed' | 'paid' }) {
   );
 }
 
-type EditMap = Record<number, { basic_salary: string; allowances: string; deductions: string }>;
-type SMEditMap = Record<number, { basic_salary: string; allowances: string; deductions: string }>;
+const PROF_TAX = 200;
+
+type SMEditMap = Record<number, { basic_salary: string; meal_allowance: string; fuel_allowance: string; driver_allowance: string }>;
 
 export default function PayrollPage() {
   const now = new Date();
@@ -47,13 +48,9 @@ export default function PayrollPage() {
   const [history, setHistory] = useState<PayrollHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [saving, setSaving] = useState<number | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
   const [msg, setMsg] = useState('');
-
-  // inline edits: recordId → field values
-  const [edits, setEdits] = useState<EditMap>({});
-  const [editingRow, setEditingRow] = useState<number | null>(null);
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
 
@@ -88,9 +85,10 @@ export default function PayrollPage() {
     setSmEdits(prev => ({
       ...prev,
       [entry.employee_id]: {
-        basic_salary: String(entry.basic_salary),
-        allowances:   String(entry.allowances),
-        deductions:   String(entry.deductions),
+        basic_salary:    String(entry.basic_salary),
+        meal_allowance:  String(entry.meal_allowance),
+        fuel_allowance:  String(entry.fuel_allowance),
+        driver_allowance:String(entry.driver_allowance),
       },
     }));
   };
@@ -101,9 +99,11 @@ export default function PayrollPage() {
     setSmSaving(employeeId);
     try {
       await updateSalaryMaster(employeeId, {
-        basic_salary: Number(e.basic_salary) || 0,
-        allowances:   Number(e.allowances)   || 0,
-        deductions:   Number(e.deductions)   || 0,
+        basic_salary:     Number(e.basic_salary)     || 0,
+        meal_allowance:   Number(e.meal_allowance)   || 0,
+        fuel_allowance:   Number(e.fuel_allowance)   || 0,
+        driver_allowance: Number(e.driver_allowance) || 0,
+        deductions:       0,
       });
       setSmEditingRow(null);
       loadSalaryMaster();
@@ -124,33 +124,17 @@ export default function PayrollPage() {
     } finally { setGenerating(false); }
   };
 
-  const startEdit = (r: PayrollRecord) => {
-    setEditingRow(r.id);
-    setEdits(prev => ({
-      ...prev,
-      [r.id]: {
-        basic_salary: String(r.basic_salary),
-        allowances: String(r.allowances),
-        deductions: String(r.deductions),
-      },
-    }));
-  };
-
-  const handleSaveRow = async (recordId: number) => {
-    const e = edits[recordId];
-    if (!e) return;
-    setSaving(recordId);
+  const handleRegenerate = async () => {
+    if (!run) return;
+    if (!window.confirm(`Re-generate payroll for ${MONTHS[month - 1]} ${year}?\n\nThis will discard all current records and rebuild from the latest salary master and attendance data. Any manual edits to this run will be lost.`)) return;
+    setRegenerating(true);
     try {
-      await updatePayrollRecord(recordId, {
-        basic_salary: Number(e.basic_salary) || 0,
-        allowances:   Number(e.allowances)   || 0,
-        deductions:   Number(e.deductions)   || 0,
-      });
-      setEditingRow(null);
+      await regeneratePayroll(run.id);
+      flash('Payroll re-generated successfully');
       loadRun();
-    } catch (err: any) {
-      flash(err.message || 'Save failed');
-    } finally { setSaving(null); }
+    } catch (e: any) {
+      flash(e.message || 'Failed to re-generate');
+    } finally { setRegenerating(false); }
   };
 
   const handleStatus = async (status: 'processed' | 'paid') => {
@@ -165,14 +149,8 @@ export default function PayrollPage() {
     } finally { setStatusSaving(false); }
   };
 
-  const totalNet   = run?.records.reduce((s, r) => s + r.net_salary, 0) ?? 0;
+  const totalNet   = run?.records.reduce((s, r) => s + r.gross_salary - r.lop_deduction - PROF_TAX, 0) ?? 0;
   const totalGross = run?.records.reduce((s, r) => s + r.gross_salary, 0) ?? 0;
-  const totalDed   = run?.records.reduce((s, r) => s + r.deductions, 0) ?? 0;
-
-  const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '4px 8px', border: '1px solid #6366f1',
-    borderRadius: 6, fontSize: 13, outline: 'none', textAlign: 'right',
-  };
 
   return (
     <AppLayout>
@@ -212,11 +190,11 @@ export default function PayrollPage() {
           {loading ? (
             <p style={{ color: '#9ca3af', fontSize: 14 }}>Loading…</p>
           ) : (
-            <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div style={{ background: '#fff', borderRadius: 14, overflow: 'auto', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
                 <thead>
                   <tr style={{ background: '#f9fafb' }}>
-                    {['Employee', 'Role', 'Basic Salary', 'Allowances', 'Deductions', 'Gross', 'Last Updated', ''].map(h => (
+                    {['Emp ID', 'Employee', 'Role', 'Gross Salary', 'Basic Salary', 'Meal Allowance', 'Fuel Allowance', 'Driver Allowance', 'Last Updated', ''].map(h => (
                       <th key={h} style={{ padding: '11px 14px', textAlign: h === '' ? 'center' : 'left', fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -226,39 +204,38 @@ export default function PayrollPage() {
                     const isEditing = smEditingRow === entry.employee_id;
                     const e = smEdits[entry.employee_id];
                     const gross = isEditing
-                      ? (Number(e?.basic_salary) || 0) + (Number(e?.allowances) || 0)
-                      : entry.basic_salary + entry.allowances;
+                      ? (Number(e?.basic_salary) || 0) + (Number(e?.meal_allowance) || 0) + (Number(e?.fuel_allowance) || 0) + (Number(e?.driver_allowance) || 0)
+                      : entry.basic_salary + entry.meal_allowance + entry.fuel_allowance + entry.driver_allowance;
+
+                    const tdNum = (val: number, editing: boolean, field: keyof typeof e) => editing
+                      ? (
+                        <td style={{ padding: '8px 14px' }}>
+                          <input style={inputStyle} type="number" min="0" value={e[field]}
+                            onChange={ev => setSmEdits(p => ({ ...p, [entry.employee_id]: { ...p[entry.employee_id], [field]: ev.target.value } }))} />
+                        </td>
+                      ) : (
+                        <td style={{ padding: '12px 14px', fontSize: 13, color: val > 0 ? '#374151' : '#d1d5db', textAlign: 'right' }}>
+                          {val > 0 ? fmt(val) : '—'}
+                        </td>
+                      );
 
                     return (
                       <tr key={entry.employee_id} style={{ borderTop: '1px solid #f3f4f6', background: isEditing ? '#faf5ff' : 'transparent' }}>
-                        <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: '#111827' }}>{entry.employee_name}</td>
-                        <td style={{ padding: '12px 14px', fontSize: 12, color: '#6b7280', textTransform: 'capitalize' }}>{entry.employee_role}</td>
+                        <td style={{ padding: '12px 14px', fontSize: 13, color: '#6b7280', fontFamily: 'monospace' }}>{entry.emp_id ?? <span style={{ color: '#d1d5db' }}>—</span>}</td>
+                        <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: '#111827', whiteSpace: 'nowrap' }}>{entry.employee_name}</td>
+                        <td style={{ padding: '12px 14px', fontSize: 12, color: '#6b7280', textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{entry.employee_role}</td>
 
-                        {isEditing ? (
-                          <>
-                            <td style={{ padding: '8px 14px' }}>
-                              <input style={inputStyle} type="number" min="0" value={e.basic_salary}
-                                onChange={ev => setSmEdits(p => ({ ...p, [entry.employee_id]: { ...p[entry.employee_id], basic_salary: ev.target.value } }))} />
-                            </td>
-                            <td style={{ padding: '8px 14px' }}>
-                              <input style={inputStyle} type="number" min="0" value={e.allowances}
-                                onChange={ev => setSmEdits(p => ({ ...p, [entry.employee_id]: { ...p[entry.employee_id], allowances: ev.target.value } }))} />
-                            </td>
-                            <td style={{ padding: '8px 14px' }}>
-                              <input style={inputStyle} type="number" min="0" value={e.deductions}
-                                onChange={ev => setSmEdits(p => ({ ...p, [entry.employee_id]: { ...p[entry.employee_id], deductions: ev.target.value } }))} />
-                            </td>
-                          </>
-                        ) : (
-                          <>
-                            <td style={{ padding: '12px 14px', fontSize: 13, color: entry.basic_salary > 0 ? '#374151' : '#d1d5db', textAlign: 'right' }}>{entry.basic_salary > 0 ? fmt(entry.basic_salary) : '—'}</td>
-                            <td style={{ padding: '12px 14px', fontSize: 13, color: entry.allowances > 0 ? '#374151' : '#d1d5db', textAlign: 'right' }}>{entry.allowances > 0 ? fmt(entry.allowances) : '—'}</td>
-                            <td style={{ padding: '12px 14px', fontSize: 13, color: entry.deductions > 0 ? '#991b1b' : '#d1d5db', textAlign: 'right' }}>{entry.deductions > 0 ? fmt(entry.deductions) : '—'}</td>
-                          </>
-                        )}
+                        {/* Gross Salary — computed, always read-only */}
+                        <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: gross > 0 ? '#1e40af' : '#d1d5db', textAlign: 'right' }}>
+                          {gross > 0 ? fmt(gross) : '—'}
+                        </td>
 
-                        <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 500, color: '#1e40af', textAlign: 'right' }}>{gross > 0 ? fmt(gross) : '—'}</td>
-                        <td style={{ padding: '12px 14px', fontSize: 12, color: '#9ca3af' }}>
+                        {tdNum(entry.basic_salary,     isEditing, 'basic_salary')}
+                        {tdNum(entry.meal_allowance,   isEditing, 'meal_allowance')}
+                        {tdNum(entry.fuel_allowance,   isEditing, 'fuel_allowance')}
+                        {tdNum(entry.driver_allowance, isEditing, 'driver_allowance')}
+
+                        <td style={{ padding: '12px 14px', fontSize: 12, color: '#9ca3af', whiteSpace: 'nowrap' }}>
                           {entry.updated_at
                             ? new Date(entry.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
                             : 'Not set'}
@@ -316,10 +293,19 @@ export default function PayrollPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
                 <StatusBadge status={run.status} />
                 {run.status === 'draft' && (
-                  <button onClick={() => handleStatus('processed')} disabled={statusSaving} style={{
-                    padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                    background: '#dbeafe', color: '#1e40af', fontWeight: 600, fontSize: 13,
-                  }}>Mark as Processed</button>
+                  <>
+                    <button onClick={handleRegenerate} disabled={regenerating} style={{
+                      padding: '7px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13,
+                      background: '#fff', color: '#6b7280', border: '1px solid #d1d5db',
+                      opacity: regenerating ? 0.6 : 1,
+                    }}>
+                      {regenerating ? 'Re-generating…' : '↺ Re-generate'}
+                    </button>
+                    <button onClick={() => handleStatus('processed')} disabled={statusSaving} style={{
+                      padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                      background: '#dbeafe', color: '#1e40af', fontWeight: 600, fontSize: 13,
+                    }}>Mark as Processed</button>
+                  </>
                 )}
                 {run.status === 'processed' && (
                   <button onClick={() => handleStatus('paid')} disabled={statusSaving} style={{
@@ -342,10 +328,9 @@ export default function PayrollPage() {
           ) : (
             <>
               {/* Summary cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12, marginBottom: 16 }}>
                 {[
                   { label: 'Total Gross', value: fmt(totalGross), color: '#1e40af' },
-                  { label: 'Total Deductions', value: fmt(totalDed), color: '#991b1b' },
                   { label: 'Total Net Payout', value: fmt(totalNet), color: '#166534' },
                 ].map(c => (
                   <div key={c.label} style={{ background: '#fff', borderRadius: 12, padding: '16px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
@@ -356,78 +341,48 @@ export default function PayrollPage() {
               </div>
 
               {/* Payroll table */}
-              <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <div style={{ background: '#fff', borderRadius: 14, overflow: 'auto', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1200 }}>
                   <thead>
                     <tr style={{ background: '#f9fafb' }}>
-                      {['Employee', 'Role', 'Basic Salary', 'Allowances', 'Deductions', 'Gross', 'Net', ''].map(h => (
-                        <th key={h} style={{ padding: '11px 14px', textAlign: h === '' ? 'center' : 'left', fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{h}</th>
+                      {[
+                        'Emp ID', 'Employee Name', 'Role',
+                        'Gross Salary', 'Total Days', 'Present Days', 'Leave', 'Absent Days',
+                        'LOP Days', 'LOP Deduction', 'Net Gross Salary',
+                        'Prof Tax', 'Net Paid',
+                      ].map(h => (
+                        <th key={h} style={{
+                          padding: '11px 12px', textAlign: 'left',
+                          fontSize: 11, fontWeight: 600, color: '#9ca3af',
+                          textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap',
+                        }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {run.records.map(r => {
-                      const isEditing = editingRow === r.id;
-                      const e = edits[r.id];
-                      const gross = isEditing
-                        ? (Number(e?.basic_salary) || 0) + (Number(e?.allowances) || 0)
-                        : r.gross_salary;
-                      const net = isEditing
-                        ? gross - (Number(e?.deductions) || 0)
-                        : r.net_salary;
+                      const netGross = r.gross_salary - r.lop_deduction;
+                      const netPaid  = netGross - PROF_TAX;
 
                       return (
-                        <tr key={r.id} style={{ borderTop: '1px solid #f3f4f6', background: isEditing ? '#faf5ff' : 'transparent' }}>
-                          <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: '#111827' }}>{r.employee_name}</td>
-                          <td style={{ padding: '12px 14px', fontSize: 12, color: '#6b7280', textTransform: 'capitalize' }}>{r.employee_role}</td>
-
-                          {isEditing ? (
-                            <>
-                              <td style={{ padding: '8px 14px' }}>
-                                <input style={inputStyle} type="number" min="0" value={e.basic_salary}
-                                  onChange={ev => setEdits(p => ({ ...p, [r.id]: { ...p[r.id], basic_salary: ev.target.value } }))} />
-                              </td>
-                              <td style={{ padding: '8px 14px' }}>
-                                <input style={inputStyle} type="number" min="0" value={e.allowances}
-                                  onChange={ev => setEdits(p => ({ ...p, [r.id]: { ...p[r.id], allowances: ev.target.value } }))} />
-                              </td>
-                              <td style={{ padding: '8px 14px' }}>
-                                <input style={inputStyle} type="number" min="0" value={e.deductions}
-                                  onChange={ev => setEdits(p => ({ ...p, [r.id]: { ...p[r.id], deductions: ev.target.value } }))} />
-                              </td>
-                            </>
-                          ) : (
-                            <>
-                              <td style={{ padding: '12px 14px', fontSize: 13, color: '#374151', textAlign: 'right' }}>{fmt(r.basic_salary)}</td>
-                              <td style={{ padding: '12px 14px', fontSize: 13, color: '#374151', textAlign: 'right' }}>{fmt(r.allowances)}</td>
-                              <td style={{ padding: '12px 14px', fontSize: 13, color: '#991b1b', textAlign: 'right' }}>{fmt(r.deductions)}</td>
-                            </>
-                          )}
-
-                          <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 500, color: '#1e40af', textAlign: 'right' }}>{fmt(gross)}</td>
-                          <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: net >= 0 ? '#166534' : '#991b1b', textAlign: 'right' }}>{fmt(net)}</td>
-
-                          <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                            {run.status === 'draft' && (
-                              isEditing ? (
-                                <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                                  <button onClick={() => handleSaveRow(r.id)} disabled={saving === r.id} style={{
-                                    padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                                    background: '#dcfce7', color: '#166534', fontWeight: 600, fontSize: 12,
-                                  }}>{saving === r.id ? '…' : 'Save'}</button>
-                                  <button onClick={() => setEditingRow(null)} style={{
-                                    padding: '4px 10px', borderRadius: 6, border: '1px solid #e5e7eb', cursor: 'pointer',
-                                    background: '#fff', color: '#6b7280', fontSize: 12,
-                                  }}>Cancel</button>
-                                </div>
-                              ) : (
-                                <button onClick={() => startEdit(r)} style={{
-                                  padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                                  background: '#ede9fe', color: '#6d28d9', fontWeight: 600, fontSize: 12,
-                                }}>Edit</button>
-                              )
-                            )}
+                        <tr key={r.id} style={{ borderTop: '1px solid #f3f4f6' }}>
+                          <td style={{ padding: '12px 12px', fontSize: 13, color: '#6b7280', fontFamily: 'monospace' }}>{r.emp_id ?? <span style={{ color: '#d1d5db' }}>—</span>}</td>
+                          <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 600, color: '#111827', whiteSpace: 'nowrap' }}>{r.employee_name}</td>
+                          <td style={{ padding: '12px 12px', fontSize: 12, color: '#6b7280', textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{r.employee_role}</td>
+                          <td style={{ padding: '12px 12px', fontSize: 13, color: '#374151', textAlign: 'right' }}>{fmt(r.gross_salary)}</td>
+                          <td style={{ padding: '12px 12px', fontSize: 13, color: '#374151', textAlign: 'right' }}>{r.working_days}</td>
+                          <td style={{ padding: '12px 12px', fontSize: 13, color: '#16a34a', textAlign: 'right' }}>{r.present_days}</td>
+                          <td style={{ padding: '12px 12px', fontSize: 13, color: '#2563eb', textAlign: 'right' }}>{r.leave_days}</td>
+                          <td style={{ padding: '12px 12px', fontSize: 13, color: '#dc2626', textAlign: 'right' }}>{r.absent_days}</td>
+                          <td style={{ padding: '12px 12px', fontSize: 13, color: r.lop_days > 0 ? '#991b1b' : '#9ca3af', textAlign: 'right' }}>
+                            {r.lop_days > 0 ? r.lop_days : '—'}
                           </td>
+                          <td style={{ padding: '12px 12px', fontSize: 13, color: r.lop_deduction > 0 ? '#991b1b' : '#9ca3af', textAlign: 'right' }}>
+                            {r.lop_deduction > 0 ? fmt(r.lop_deduction) : '—'}
+                          </td>
+                          <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 500, color: '#1e40af', textAlign: 'right' }}>{fmt(netGross)}</td>
+                          <td style={{ padding: '12px 12px', fontSize: 13, color: '#6b7280', textAlign: 'right' }}>{fmt(PROF_TAX)}</td>
+                          <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 700, color: netPaid >= 0 ? '#166534' : '#991b1b', textAlign: 'right' }}>{fmt(netPaid)}</td>
                         </tr>
                       );
                     })}
@@ -435,13 +390,35 @@ export default function PayrollPage() {
                   {/* Totals row */}
                   <tfoot>
                     <tr style={{ borderTop: '2px solid #e5e7eb', background: '#f9fafb' }}>
-                      <td colSpan={2} style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: '#111827' }}>Total ({run.records.length} employees)</td>
-                      <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, textAlign: 'right', color: '#374151' }}></td>
-                      <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, textAlign: 'right', color: '#374151' }}></td>
-                      <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, textAlign: 'right', color: '#991b1b' }}>{fmt(totalDed)}</td>
-                      <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, textAlign: 'right', color: '#1e40af' }}>{fmt(totalGross)}</td>
-                      <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, textAlign: 'right', color: '#166534' }}>{fmt(totalNet)}</td>
-                      <td />
+                      <td colSpan={3} style={{ padding: '12px 12px', fontSize: 13, fontWeight: 700, color: '#111827' }}>
+                        Total ({run.records.length} employees)
+                      </td>
+                      {/* Gross Salary total */}
+                      <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right', color: '#374151' }}>
+                        {fmt(run.records.reduce((s, r) => s + r.gross_salary, 0))}
+                      </td>
+                      {/* Total Days, Present, Leave, Absent — skip */}
+                      <td /><td /><td /><td />
+                      {/* LOP Days total */}
+                      <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right', color: '#991b1b' }}>
+                        {run.records.reduce((s, r) => s + r.lop_days, 0)}
+                      </td>
+                      {/* LOP Deduction total */}
+                      <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right', color: '#991b1b' }}>
+                        {fmt(run.records.reduce((s, r) => s + r.lop_deduction, 0))}
+                      </td>
+                      {/* Net Gross Salary total */}
+                      <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 700, textAlign: 'right', color: '#1e40af' }}>
+                        {fmt(run.records.reduce((s, r) => s + r.gross_salary - r.lop_deduction, 0))}
+                      </td>
+                      {/* Prof Tax total */}
+                      <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right', color: '#6b7280' }}>
+                        {fmt(run.records.length * PROF_TAX)}
+                      </td>
+                      {/* Net Paid total */}
+                      <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 700, textAlign: 'right', color: '#166534' }}>
+                        {fmt(totalNet)}
+                      </td>
                     </tr>
                   </tfoot>
                 </table>

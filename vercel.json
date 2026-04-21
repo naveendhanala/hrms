@@ -1,0 +1,13 @@
+{
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
+  "installCommand": "npm install",
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/index" }
+  ],
+  "crons": [
+    { "path": "/api/cron/mark-absent",   "schedule": "29 18 * * *"  },
+    { "path": "/api/cron/credit-leaves", "schedule": "31 18 1 * *"  },
+    { "path": "/api/cron/reset-leaves",  "schedule": "28 18 31 3 *" }
+  ]
+}

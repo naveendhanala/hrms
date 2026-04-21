@@ -1,6 +1,6 @@
 import { apiFetch } from './client';
 
-const BASE = 'http://localhost:4000/api/attendance';
+const BASE = '/api/attendance';
 
 export interface AttendanceRecord {
   id: number;
@@ -10,7 +10,7 @@ export interface AttendanceRecord {
   date: string;
   check_in: string | null;
   check_out: string | null;
-  status: 'present' | 'absent' | 'leave' | 'half-day';
+  status: 'present' | 'absent' | 'leave';
   work_hours: number | null;
   notes: string;
 }
@@ -34,7 +34,6 @@ export interface AttendanceSummary {
   present: number;
   absent: number;
   leave: number;
-  'half-day': number;
 }
 
 export interface EmployeeAttendanceSummary {
@@ -42,7 +41,6 @@ export interface EmployeeAttendanceSummary {
   user_name: string;
   user_role: string;
   present: number;
-  half_day: number;
   leave_days: number;
   absent: number;
   total_days: number;
@@ -81,6 +79,9 @@ export const getAttendanceReport = (month?: number, year?: number) => {
   if (year) params.set('year', String(year));
   return apiFetch<EmployeeAttendanceSummary[]>(`${BASE}/report?${params}`);
 };
+
+export const getLeaveBalance = () =>
+  apiFetch<{ balance: number }>(`${BASE}/leave-balance`);
 
 export const checkIn = () =>
   apiFetch<AttendanceRecord>(`${BASE}/check-in`, { method: 'POST' });

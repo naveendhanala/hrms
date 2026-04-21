@@ -4,6 +4,14 @@ import { useAuth } from '../../context/AuthContext';
 import type { UserRole } from '../../types';
 
 const MODULE_ROUTES: Record<string, Record<UserRole, string>> = {
+  KB: {
+    admin: '/kb',
+    hr: '/kb',
+    director: '/kb',
+    projectlead: '/kb',
+    businesshead: '/kb',
+    employee: '/kb',
+  },
   DASHBOARD: {
     admin: '/dashboard',
     hr: '/dashboard',
@@ -55,6 +63,7 @@ const MODULE_ROUTES: Record<string, Record<UserRole, string>> = {
 };
 
 const MODULE_ACCESS: Record<string, UserRole[]> = {
+  KB:         ['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee'],
   DASHBOARD:  ['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee'],
   EMPLOYEES:  ['admin', 'hr'],
   ATS:        ['admin', 'hr', 'director', 'projectlead', 'businesshead'],
@@ -64,12 +73,13 @@ const MODULE_ACCESS: Record<string, UserRole[]> = {
 };
 
 const NAV_ITEMS = [
-  { key: 'DASHBOARD',  label: 'Dashboard'  },
-  { key: 'EMPLOYEES',  label: 'Employees'  },
-  { key: 'ATS',        label: 'ATS'        },
-  { key: 'LMS',        label: 'LMS'        },
-  { key: 'ATTENDANCE', label: 'Attendance' },
-  { key: 'PAYROLL',    label: 'Payroll'    },
+  { key: 'DASHBOARD',  label: 'Dashboard'       },
+  { key: 'EMPLOYEES',  label: 'Employees'       },
+  { key: 'ATS',        label: 'ATS'             },
+  { key: 'LMS',        label: 'LMS'             },
+  { key: 'KB',         label: 'Knowledge Base'  },
+  { key: 'ATTENDANCE', label: 'Attendance'      },
+  { key: 'PAYROLL',    label: 'Payroll'         },
 ];
 
 interface Props {
@@ -96,6 +106,8 @@ export default function AppLayout({ children }: Props) {
     ? 'PAYROLL'
     : location.pathname.startsWith('/attendance')
     ? 'ATTENDANCE'
+    : location.pathname.startsWith('/kb')
+    ? 'KB'
     : location.pathname.startsWith('/lms')
     ? 'LMS'
     : 'ATS';
@@ -230,6 +242,14 @@ export default function AppLayout({ children }: Props) {
                     <rect x="2" y="5" width="20" height="14" rx="2" />
                     <line x1="2" y1="10" x2="22" y2="10" />
                   </svg>
+                ) : key === 'KB' ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                    <line x1="8" y1="7" x2="16" y2="7" />
+                    <line x1="8" y1="11" x2="16" y2="11" />
+                    <line x1="8" y1="15" x2="12" y2="15" />
+                  </svg>
                 ) : (
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
@@ -321,6 +341,7 @@ export default function AppLayout({ children }: Props) {
             : activeModule === 'PAYROLL'    ? 'Payroll'
             : activeModule === 'ATS'        ? 'Applicant Tracking System'
             : activeModule === 'ATTENDANCE' ? 'Attendance Management'
+            : activeModule === 'KB'         ? 'Knowledge Base'
             :                                 'Learning Management System'}
           </h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

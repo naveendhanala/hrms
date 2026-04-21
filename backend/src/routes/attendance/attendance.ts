@@ -4,62 +4,59 @@ import { authenticateToken, requireRole, AuthRequest } from '../../middleware/au
 
 const router = Router();
 
-// GET /today — current user's attendance for today
-router.get('/today', authenticateToken, (req: AuthRequest, res: Response) => {
+router.get('/today', authenticateToken, async (req: AuthRequest, res: Response) => {
   const today = new Date().toISOString().split('T')[0];
-  const row = db.prepare('SELECT * FROM attendance WHERE user_id = ? AND date = ?').get(req.user!.id, today);
+  const row = await db.queryOne('SELECT * FROM attendance WHERE user_id = ? AND date = ?', [req.user!.id, today]);
   res.json(row || null);
 });
 
-// GET /summary — monthly summary for current user
-router.get('/summary', authenticateToken, (req: AuthRequest, res: Response) => {
+router.get('/summary', authenticateToken, async (req: AuthRequest, res: Response) => {
   const { month, year } = req.query;
   const m = month ? String(month).padStart(2, '0') : String(new Date().getMonth() + 1).padStart(2, '0');
   const y = year || new Date().getFullYear();
   const prefix = `${y}-${m}`;
 
-  const rows = db.prepare(
-    `SELECT status, COUNT(*) as count FROM attendance WHERE user_id = ? AND date LIKE ? GROUP BY status`
-  ).all(req.user!.id, `${prefix}%`) as any[];
+  const rows = await db.query<any>(
+    'SELECT status, COUNT(*) as count FROM attendance WHERE user_id = ? AND date LIKE ? GROUP BY status',
+    [req.user!.id, `${prefix}%`],
+  );
 
-  const summary: Record<string, number> = { present: 0, absent: 0, leave: 0, 'half-day': 0 };
+  const summary: Record<string, number> = { present: 0, absent: 0, leave: 0 };
   for (const r of rows) summary[r.status] = r.count;
   res.json(summary);
 });
 
-// GET / — attendance list for current user (optional ?month=&year=)
-router.get('/', authenticateToken, (req: AuthRequest, res: Response) => {
+router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   const { month, year } = req.query;
   const m = month ? String(month).padStart(2, '0') : String(new Date().getMonth() + 1).padStart(2, '0');
   const y = year || new Date().getFullYear();
   const prefix = `${y}-${m}`;
 
-  const rows = db.prepare(
+  const rows = await db.query(
     `SELECT a.*, u.name as user_name FROM attendance a
      JOIN users u ON a.user_id = u.id
      WHERE a.user_id = ? AND a.date LIKE ?
-     ORDER BY a.date DESC`
-  ).all(req.user!.id, `${prefix}%`);
+     ORDER BY a.date DESC`,
+    [req.user!.id, `${prefix}%`],
+  );
   res.json(rows);
 });
 
-// GET /report — per-employee monthly summary (admin/hr/moderator)
-router.get('/report', authenticateToken, requireRole('admin', 'hr'), (req: AuthRequest, res: Response) => {
+router.get('/report', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
   const { month, year } = req.query;
   const m = month ? String(month).padStart(2, '0') : String(new Date().getMonth() + 1).padStart(2, '0');
   const y = year || new Date().getFullYear();
   const prefix = `${y}-${m}`;
   const today = new Date().toISOString().split('T')[0];
 
-  const rows = db.prepare(`
+  const rows = await db.query(`
     SELECT
       u.id   AS user_id,
       u.name AS user_name,
       u.role AS user_role,
-      COUNT(CASE WHEN a.status = 'present'  THEN 1 END) AS present,
-      COUNT(CASE WHEN a.status = 'half-day' THEN 1 END) AS half_day,
-      COUNT(CASE WHEN a.status = 'leave'    THEN 1 END) AS leave_days,
-      COUNT(CASE WHEN a.status = 'absent'   THEN 1 END) AS absent,
+      COUNT(CASE WHEN a.status = 'present' THEN 1 END) AS present,
+      COUNT(CASE WHEN a.status = 'leave'   THEN 1 END) AS leave_days,
+      COUNT(CASE WHEN a.status = 'absent'  THEN 1 END) AS absent,
       COUNT(a.id) AS total_days,
       ROUND(AVG(CASE WHEN a.work_hours IS NOT NULL THEN a.work_hours END), 1) AS avg_hours,
       (SELECT status FROM attendance WHERE user_id = u.id AND date = ?) AS today_status
@@ -68,13 +65,12 @@ router.get('/report', authenticateToken, requireRole('admin', 'hr'), (req: AuthR
     WHERE u.role != 'admin'
     GROUP BY u.id, u.name, u.role
     ORDER BY u.name ASC
-  `).all(today, `${prefix}%`);
+  `, [today, `${prefix}%`]);
 
   res.json(rows);
 });
 
-// GET /all — admin/hr view all users attendance
-router.get('/all', authenticateToken, requireRole('admin', 'hr'), (req: AuthRequest, res: Response) => {
+router.get('/all', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
   const { month, year, user_id } = req.query;
   const m = month ? String(month).padStart(2, '0') : String(new Date().getMonth() + 1).padStart(2, '0');
   const y = year || new Date().getFullYear();
@@ -91,75 +87,73 @@ router.get('/all', authenticateToken, requireRole('admin', 'hr'), (req: AuthRequ
   }
   sql += ' ORDER BY a.date DESC, u.name ASC';
 
-  res.json(db.prepare(sql).all(...params));
+  res.json(await db.query(sql, params));
 });
 
-// POST /check-in
-router.post('/check-in', authenticateToken, (req: AuthRequest, res: Response) => {
+router.post('/check-in', authenticateToken, async (req: AuthRequest, res: Response) => {
   const today = new Date().toISOString().split('T')[0];
   const now = new Date().toISOString();
   const checkInTime = new Date().toTimeString().slice(0, 5);
 
-  const existing = db.prepare('SELECT * FROM attendance WHERE user_id = ? AND date = ?').get(req.user!.id, today) as any;
+  const existing = await db.queryOne<any>('SELECT * FROM attendance WHERE user_id = ? AND date = ?', [req.user!.id, today]);
 
   if (existing?.check_in) {
     return res.status(400).json({ error: 'Already checked in today' });
   }
 
   if (existing) {
-    db.prepare(`UPDATE attendance SET check_in = ?, status = 'present', updated_at = ? WHERE user_id = ? AND date = ?`)
-      .run(checkInTime, now, req.user!.id, today);
+    await db.run(
+      "UPDATE attendance SET check_in = ?, status = 'present', updated_at = ? WHERE user_id = ? AND date = ?",
+      [checkInTime, now, req.user!.id, today],
+    );
   } else {
-    db.prepare(
-      `INSERT INTO attendance (user_id, date, check_in, status, created_at, updated_at) VALUES (?, ?, ?, 'present', ?, ?)`
-    ).run(req.user!.id, today, checkInTime, now, now);
+    await db.run(
+      "INSERT INTO attendance (user_id, date, check_in, status, created_at, updated_at) VALUES (?, ?, ?, 'present', ?, ?)",
+      [req.user!.id, today, checkInTime, now, now],
+    );
   }
 
-  res.json(db.prepare('SELECT * FROM attendance WHERE user_id = ? AND date = ?').get(req.user!.id, today));
+  res.json(await db.queryOne('SELECT * FROM attendance WHERE user_id = ? AND date = ?', [req.user!.id, today]));
 });
 
-// POST /check-out
-router.post('/check-out', authenticateToken, (req: AuthRequest, res: Response) => {
+router.post('/check-out', authenticateToken, async (req: AuthRequest, res: Response) => {
   const today = new Date().toISOString().split('T')[0];
   const now = new Date().toISOString();
   const checkOutTime = new Date().toTimeString().slice(0, 5);
 
-  const existing = db.prepare('SELECT * FROM attendance WHERE user_id = ? AND date = ?').get(req.user!.id, today) as any;
+  const existing = await db.queryOne<any>('SELECT * FROM attendance WHERE user_id = ? AND date = ?', [req.user!.id, today]);
 
-  if (!existing?.check_in) {
-    return res.status(400).json({ error: 'Must check in before checking out' });
-  }
-  if (existing?.check_out) {
-    return res.status(400).json({ error: 'Already checked out today' });
-  }
+  if (!existing?.check_in) return res.status(400).json({ error: 'Must check in before checking out' });
+  if (existing?.check_out) return res.status(400).json({ error: 'Already checked out today' });
 
-  // Calculate work hours
   const [inH, inM] = existing.check_in.split(':').map(Number);
   const [outH, outM] = checkOutTime.split(':').map(Number);
   const workHours = Math.round(((outH * 60 + outM) - (inH * 60 + inM)) / 60 * 10) / 10;
-  const status = workHours < 4 ? 'half-day' : 'present';
 
-  db.prepare(
-    `UPDATE attendance SET check_out = ?, work_hours = ?, status = ?, updated_at = ? WHERE user_id = ? AND date = ?`
-  ).run(checkOutTime, workHours, status, now, req.user!.id, today);
+  await db.run(
+    "UPDATE attendance SET check_out = ?, work_hours = ?, status = 'present', updated_at = ? WHERE user_id = ? AND date = ?",
+    [checkOutTime, workHours, now, req.user!.id, today],
+  );
 
-  res.json(db.prepare('SELECT * FROM attendance WHERE user_id = ? AND date = ?').get(req.user!.id, today));
+  res.json(await db.queryOne('SELECT * FROM attendance WHERE user_id = ? AND date = ?', [req.user!.id, today]));
 });
 
-// ── Leaves ───────────────────────────────────────────────────────────────────
+router.get('/leave-balance', authenticateToken, async (req: AuthRequest, res: Response) => {
+  const row = await db.queryOne<any>('SELECT balance FROM leave_balances WHERE user_id = ?', [req.user!.id]);
+  res.json({ balance: row?.balance ?? 0 });
+});
 
-// GET /leaves — current user's leaves
-router.get('/leaves', authenticateToken, (req: AuthRequest, res: Response) => {
-  const rows = db.prepare(
+router.get('/leaves', authenticateToken, async (req: AuthRequest, res: Response) => {
+  const rows = await db.query(
     `SELECT l.*, u.name as reviewer_name FROM leaves l
      LEFT JOIN users u ON l.reviewed_by = u.id
-     WHERE l.user_id = ? ORDER BY l.created_at DESC`
-  ).all(req.user!.id);
+     WHERE l.user_id = ? ORDER BY l.created_at DESC`,
+    [req.user!.id],
+  );
   res.json(rows);
 });
 
-// GET /leaves/all — admin/hr view all leave requests
-router.get('/leaves/all', authenticateToken, requireRole('admin', 'hr'), (req: AuthRequest, res: Response) => {
+router.get('/leaves/all', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
   const { status } = req.query;
   let sql = `SELECT l.*, u.name as user_name, u.role as user_role, r.name as reviewer_name
              FROM leaves l JOIN users u ON l.user_id = u.id
@@ -167,62 +161,75 @@ router.get('/leaves/all', authenticateToken, requireRole('admin', 'hr'), (req: A
   if (status) sql += ' WHERE l.status = ?';
   sql += ' ORDER BY l.created_at DESC';
 
-  res.json(status ? db.prepare(sql).all(String(status)) : db.prepare(sql).all());
+  res.json(await db.query(sql, status ? [String(status)] : []));
 });
 
-// POST /leaves — apply for leave
-router.post('/leaves', authenticateToken, (req: AuthRequest, res: Response) => {
+router.post('/leaves', authenticateToken, async (req: AuthRequest, res: Response) => {
   const { start_date, end_date, type, reason } = req.body;
   if (!start_date || !end_date || !reason) {
     return res.status(400).json({ error: 'start_date, end_date and reason are required' });
   }
 
   const now = new Date().toISOString();
-  const result = db.prepare(
-    `INSERT INTO leaves (user_id, start_date, end_date, type, reason, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`
-  ).run(req.user!.id, start_date, end_date, type || 'casual', reason, now, now);
+  const result = await db.run(
+    "INSERT INTO leaves (user_id, start_date, end_date, type, reason, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?) RETURNING id",
+    [req.user!.id, start_date, end_date, type || 'casual', reason, now, now],
+  );
 
-  res.status(201).json(db.prepare('SELECT * FROM leaves WHERE id = ?').get(result.lastInsertRowid));
+  res.status(201).json(await db.queryOne('SELECT * FROM leaves WHERE id = ?', [result.lastInsertRowid]));
 });
 
-// PUT /leaves/:id/approve
-router.put('/leaves/:id/approve', authenticateToken, requireRole('admin', 'hr'), (req: AuthRequest, res: Response) => {
+router.put('/leaves/:id/approve', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
   const now = new Date().toISOString();
-  const result = db.prepare(
-    `UPDATE leaves SET status = 'approved', reviewed_by = ?, reviewed_at = ?, updated_at = ? WHERE id = ?`
-  ).run(req.user!.id, now, now, req.params.id);
+  const result = await db.run(
+    "UPDATE leaves SET status = 'approved', reviewed_by = ?, reviewed_at = ?, updated_at = ? WHERE id = ?",
+    [req.user!.id, now, now, req.params.id],
+  );
 
-  if (result.changes === 0) return res.status(404).json({ error: 'Leave not found' });
+  if (result.rowsAffected === 0) return res.status(404).json({ error: 'Leave not found' });
 
-  // Mark attendance as 'leave' for those dates
-  const leave = db.prepare('SELECT * FROM leaves WHERE id = ?').get(req.params.id) as any;
+  const leave = await db.queryOne<any>('SELECT * FROM leaves WHERE id = ?', [req.params.id]);
   if (leave) {
     const start = new Date(leave.start_date);
-    const end = new Date(leave.end_date);
-    const ts = now;
+    const end   = new Date(leave.end_date);
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const duration = Math.round((end.getTime() - start.getTime()) / msPerDay) + 1;
+
+    const balRow = await db.queryOne<any>('SELECT balance FROM leave_balances WHERE user_id = ?', [leave.user_id]);
+    const currentBalance = balRow?.balance ?? 0;
+    const lopDays        = Math.max(0, duration - currentBalance);
+    const newBalance     = Math.max(0, currentBalance - duration);
+
+    await db.run(
+      'INSERT INTO leave_balances (user_id, balance, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET balance = ?, updated_at = ?',
+      [leave.user_id, newBalance, now, newBalance, now],
+    );
+
+    await db.run('UPDATE leaves SET lop_days = ? WHERE id = ?', [lopDays, req.params.id]);
+
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       const dateStr = d.toISOString().split('T')[0];
-      db.prepare(
+      await db.run(
         `INSERT INTO attendance (user_id, date, status, notes, created_at, updated_at)
          VALUES (?, ?, 'leave', ?, ?, ?)
-         ON CONFLICT(user_id, date) DO UPDATE SET status = 'leave', notes = ?, updated_at = ?`
-      ).run(leave.user_id, dateStr, `Leave: ${leave.type}`, ts, ts, `Leave: ${leave.type}`, ts);
+         ON CONFLICT(user_id, date) DO UPDATE SET status = 'leave', notes = ?, updated_at = ?`,
+        [leave.user_id, dateStr, `Leave: ${leave.type}`, now, now, `Leave: ${leave.type}`, now],
+      );
     }
   }
 
-  res.json(db.prepare('SELECT * FROM leaves WHERE id = ?').get(req.params.id));
+  res.json(await db.queryOne('SELECT * FROM leaves WHERE id = ?', [req.params.id]));
 });
 
-// PUT /leaves/:id/reject
-router.put('/leaves/:id/reject', authenticateToken, requireRole('admin', 'hr'), (req: AuthRequest, res: Response) => {
+router.put('/leaves/:id/reject', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
   const now = new Date().toISOString();
-  const result = db.prepare(
-    `UPDATE leaves SET status = 'rejected', reviewed_by = ?, reviewed_at = ?, updated_at = ? WHERE id = ?`
-  ).run(req.user!.id, now, now, req.params.id);
+  const result = await db.run(
+    "UPDATE leaves SET status = 'rejected', reviewed_by = ?, reviewed_at = ?, updated_at = ? WHERE id = ?",
+    [req.user!.id, now, now, req.params.id],
+  );
 
-  if (result.changes === 0) return res.status(404).json({ error: 'Leave not found' });
-  res.json(db.prepare('SELECT * FROM leaves WHERE id = ?').get(req.params.id));
+  if (result.rowsAffected === 0) return res.status(404).json({ error: 'Leave not found' });
+  res.json(await db.queryOne('SELECT * FROM leaves WHERE id = ?', [req.params.id]));
 });
 
 export default router;

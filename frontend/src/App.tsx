@@ -15,6 +15,7 @@ import DirectorPage from './pages/ats/DirectorPage';
 import ProjectLeadPage from './pages/ats/ProjectLeadPage';
 import BusinessHeadPage from './pages/ats/BusinessHeadPage';
 
+import KnowledgeBasePage from './pages/kb/KnowledgeBasePage';
 import EmployeeDashboard from './pages/lms/EmployeeDashboard';
 import WatchPage from './pages/lms/WatchPage';
 import QuizPage from './pages/lms/QuizPage';
@@ -33,6 +34,9 @@ export default function App() {
           <Route path="/employees" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><EmployeesPage /></ProtectedRoute>} />
           <Route path="/payroll" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><PayrollPage /></ProtectedRoute>} />
           <Route path="/feedback" element={<FeedbackPage />} />
+
+          {/* Knowledge Base */}
+          <Route path="/kb" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee']}><KnowledgeBasePage /></ProtectedRoute>} />
 
           {/* ATS routes */}
           <Route path="/ats/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminPage /></ProtectedRoute>} />

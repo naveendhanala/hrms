@@ -4,49 +4,41 @@ import { authenticateToken, requireRole, AuthRequest } from '../../middleware/au
 
 const router = Router();
 
-// GET /:courseId/questions
-router.get('/:courseId/questions', authenticateToken, requireRole('admin', 'hr'), (req: AuthRequest, res: Response) => {
-  const questions = db.prepare(
-    'SELECT * FROM questions WHERE course_id = ? ORDER BY id'
-  ).all(req.params.courseId);
-
+router.get('/:courseId/questions', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+  const questions = await db.query(
+    'SELECT * FROM questions WHERE course_id = ? ORDER BY id',
+    [req.params.courseId],
+  );
   res.json(questions);
 });
 
-// POST /:courseId/questions
-router.post('/:courseId/questions', authenticateToken, requireRole('admin', 'hr'), (req: AuthRequest, res: Response) => {
-  const course = db.prepare('SELECT id FROM courses WHERE id = ?').get(req.params.courseId);
-  if (!course) {
-    return res.status(404).json({ error: 'Course not found' });
-  }
+router.post('/:courseId/questions', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+  const course = await db.queryOne('SELECT id FROM courses WHERE id = ?', [req.params.courseId]);
+  if (!course) return res.status(404).json({ error: 'Course not found' });
 
   const { question_text, option_a, option_b, option_c, option_d, correct_option } = req.body;
-
   if (!question_text || !option_a || !option_b || !option_c || !option_d || !correct_option) {
     return res.status(400).json({ error: 'All question fields are required' });
   }
 
-  const result = db.prepare(
-    'INSERT INTO questions (course_id, question_text, option_a, option_b, option_c, option_d, correct_option) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).run(req.params.courseId, question_text, option_a, option_b, option_c, option_d, correct_option);
+  const result = await db.run(
+    'INSERT INTO questions (course_id, question_text, option_a, option_b, option_c, option_d, correct_option) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id',
+    [req.params.courseId, question_text, option_a, option_b, option_c, option_d, correct_option],
+  );
 
-  const question = db.prepare('SELECT * FROM questions WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json(question);
+  res.status(201).json(await db.queryOne('SELECT * FROM questions WHERE id = ?', [result.lastInsertRowid]));
 });
 
-// PUT /:courseId/questions/:id
-router.put('/:courseId/questions/:id', authenticateToken, requireRole('admin', 'hr'), (req: AuthRequest, res: Response) => {
-  const existing = db.prepare(
-    'SELECT * FROM questions WHERE id = ? AND course_id = ?'
-  ).get(req.params.id, req.params.courseId);
-
-  if (!existing) {
-    return res.status(404).json({ error: 'Question not found' });
-  }
+router.put('/:courseId/questions/:id', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+  const existing = await db.queryOne(
+    'SELECT * FROM questions WHERE id = ? AND course_id = ?',
+    [req.params.id, req.params.courseId],
+  );
+  if (!existing) return res.status(404).json({ error: 'Question not found' });
 
   const { question_text, option_a, option_b, option_c, option_d, correct_option } = req.body;
 
-  db.prepare(
+  await db.run(
     `UPDATE questions SET
       question_text = COALESCE(?, question_text),
       option_a = COALESCE(?, option_a),
@@ -54,27 +46,21 @@ router.put('/:courseId/questions/:id', authenticateToken, requireRole('admin', '
       option_c = COALESCE(?, option_c),
       option_d = COALESCE(?, option_d),
       correct_option = COALESCE(?, correct_option)
-     WHERE id = ? AND course_id = ?`
-  ).run(
-    question_text ?? null, option_a ?? null, option_b ?? null,
-    option_c ?? null, option_d ?? null, correct_option ?? null,
-    req.params.id, req.params.courseId
+     WHERE id = ? AND course_id = ?`,
+    [question_text ?? null, option_a ?? null, option_b ?? null,
+     option_c ?? null, option_d ?? null, correct_option ?? null,
+     req.params.id, req.params.courseId],
   );
 
-  const updated = db.prepare('SELECT * FROM questions WHERE id = ?').get(req.params.id);
-  res.json(updated);
+  res.json(await db.queryOne('SELECT * FROM questions WHERE id = ?', [req.params.id]));
 });
 
-// DELETE /:courseId/questions/:id
-router.delete('/:courseId/questions/:id', authenticateToken, requireRole('admin', 'hr'), (req: AuthRequest, res: Response) => {
-  const result = db.prepare(
-    'DELETE FROM questions WHERE id = ? AND course_id = ?'
-  ).run(req.params.id, req.params.courseId);
-
-  if (result.changes === 0) {
-    return res.status(404).json({ error: 'Question not found' });
-  }
-
+router.delete('/:courseId/questions/:id', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+  const result = await db.run(
+    'DELETE FROM questions WHERE id = ? AND course_id = ?',
+    [req.params.id, req.params.courseId],
+  );
+  if (result.rowsAffected === 0) return res.status(404).json({ error: 'Question not found' });
   res.json({ message: 'Question deleted' });
 });
 
