@@ -106,3 +106,9 @@ export const approveLeave = (id: number) =>
 
 export const rejectLeave = (id: number) =>
   apiFetch<LeaveRequest>(`${BASE}/leaves/${id}/reject`, { method: 'PUT' });
+
+export const setManualAttendance = (userId: number, date: string, status: 'present' | 'absent' | 'leave') =>
+  apiFetch<{ ok: boolean }>(`${BASE}/manual`, {
+    method: 'PUT',
+    body: JSON.stringify({ user_id: userId, date, status }),
+  });

@@ -4,11 +4,11 @@ import { useAuth } from '../../context/AuthContext';
 import {
   getToday, getSummary, getMyAttendance, getAllAttendance, getAttendanceReport,
   getMyLeaves, getAllLeaves, checkIn, checkOut, applyLeave,
-  approveLeave, rejectLeave, getLeaveBalance,
+  approveLeave, rejectLeave, getLeaveBalance, setManualAttendance,
   type AttendanceRecord, type LeaveRequest, type AttendanceSummary, type EmployeeAttendanceSummary,
 } from '../../api/attendance';
 
-type Tab = 'summary' | 'overview' | 'history' | 'leaves' | 'all-attendance' | 'manage-leaves';
+type Tab = 'summary' | 'overview' | 'history' | 'leaves' | 'all-attendance' | 'manage-leaves' | 'mark-attendance';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -53,7 +53,7 @@ export default function AttendancePage() {
   const [tab, setTab] = useState<Tab>('overview');
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [year] = useState(now.getFullYear());
+  const [year, setYear] = useState(now.getFullYear());
 
   const [today, setToday] = useState<AttendanceRecord | null>(null);
   const [summary, setSummary] = useState<AttendanceSummary>({ present: 0, absent: 0, leave: 0 });
@@ -66,6 +66,13 @@ export default function AttendancePage() {
   const [allLeaves, setAllLeaves] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionMsg, setActionMsg] = useState('');
+
+  // mark-attendance state
+  type AttStatus = 'present' | 'absent' | 'leave';
+  const [markGrid, setMarkGrid] = useState<Record<number, Record<string, AttStatus>>>({});
+  const [markEmployees, setMarkEmployees] = useState<{ user_id: number; user_name: string }[]>([]);
+  const [markLoading, setMarkLoading] = useState(false);
+  const [markSaving, setMarkSaving] = useState<string | null>(null);
 
   // Leave form
   const [leaveForm, setLeaveForm] = useState({ start_date: '', end_date: '', type: 'casual', reason: '' });
@@ -116,12 +123,30 @@ export default function AttendancePage() {
     finally { setLoading(false); }
   }, []);
 
+  const loadMarkAttendance = useCallback(async () => {
+    setMarkLoading(true);
+    try {
+      const [empReport, records] = await Promise.all([
+        getAttendanceReport(month, year),
+        getAllAttendance(month, year),
+      ]);
+      setMarkEmployees(empReport.map(e => ({ user_id: e.user_id, user_name: e.user_name })));
+      const grid: Record<number, Record<string, AttStatus>> = {};
+      for (const r of records) {
+        if (!grid[r.user_id]) grid[r.user_id] = {};
+        grid[r.user_id][r.date] = r.status as AttStatus;
+      }
+      setMarkGrid(grid);
+    } finally { setMarkLoading(false); }
+  }, [month, year]);
+
   useEffect(() => { if (tab === 'summary') loadReport(); }, [tab, loadReport]);
   useEffect(() => { if (tab === 'overview') loadOverview(); }, [tab, loadOverview]);
   useEffect(() => { if (tab === 'history') loadHistory(); }, [tab, loadHistory]);
   useEffect(() => { if (tab === 'all-attendance') loadAllAttendance(); }, [tab, loadAllAttendance]);
   useEffect(() => { if (tab === 'leaves') loadLeaves(); }, [tab, loadLeaves]);
   useEffect(() => { if (tab === 'manage-leaves') loadAllLeaves(); }, [tab, loadAllLeaves]);
+  useEffect(() => { if (tab === 'mark-attendance') loadMarkAttendance(); }, [tab, loadMarkAttendance]);
 
   const handleCheckIn = async () => {
     try { setToday(await checkIn()); flash('Checked in successfully'); }
@@ -162,6 +187,7 @@ export default function AttendancePage() {
     { key: 'leaves', label: 'My Leaves' },
     ...(isAdmin ? [
       { key: 'manage-leaves' as Tab, label: 'Manage Leaves' },
+      { key: 'mark-attendance' as Tab, label: 'Mark Attendance' },
       { key: 'summary' as Tab, label: 'Summary' },
       { key: 'all-attendance' as Tab, label: 'All Attendance' },
     ] : []),
@@ -546,6 +572,90 @@ export default function AttendancePage() {
           )}
         </div>
       )}
+
+      {/* ── MARK ATTENDANCE (Admin/HR) ── */}
+      {tab === 'mark-attendance' && isAdmin && (() => {
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+        const CYCLE: Record<string, AttStatus> = { present: 'absent', absent: 'leave', leave: 'present' };
+        const CELL: Record<string, { bg: string; color: string; label: string }> = {
+          present: { bg: '#dcfce7', color: '#166534', label: 'P' },
+          absent:  { bg: '#fee2e2', color: '#991b1b', label: 'A' },
+          leave:   { bg: '#dbeafe', color: '#1e40af', label: 'L' },
+        };
+        const handleCell = async (userId: number, day: number) => {
+          const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const key = `${userId}-${dateStr}`;
+          if (markSaving === key) return;
+          const current = markGrid[userId]?.[dateStr] as AttStatus | undefined;
+          const next: AttStatus = current ? CYCLE[current] : 'present';
+          setMarkGrid(prev => ({ ...prev, [userId]: { ...prev[userId], [dateStr]: next } }));
+          setMarkSaving(key);
+          try {
+            await setManualAttendance(userId, dateStr, next);
+          } catch (err: any) {
+            setMarkGrid(prev => {
+              const g = { ...prev[userId] };
+              if (current) g[dateStr] = current; else delete g[dateStr];
+              return { ...prev, [userId]: g };
+            });
+            flash(err.message || 'Save failed');
+          } finally { setMarkSaving(null); }
+        };
+        return (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <select value={month} onChange={e => setMonth(Number(e.target.value))} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #e5e7eb', fontSize: 13 }}>
+                {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+              </select>
+              <select value={year} onChange={e => setYear(Number(e.target.value))} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #e5e7eb', fontSize: 13 }}>
+                {[year - 1, year, year + 1].map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+              <span style={{ fontSize: 12, color: '#9ca3af' }}>Click a cell to cycle: <b style={{ color: '#166534' }}>P</b>resent → <b style={{ color: '#991b1b' }}>A</b>bsent → <b style={{ color: '#1e40af' }}>L</b>eave</span>
+            </div>
+            {markLoading ? <p style={{ color: '#9ca3af', fontSize: 13 }}>Loading...</p> : (
+              <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', overflowX: 'auto' }}>
+                <table style={{ borderCollapse: 'collapse', minWidth: '100%' }}>
+                  <thead>
+                    <tr style={{ background: '#f9fafb' }}>
+                      <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', position: 'sticky', left: 0, background: '#f9fafb', zIndex: 1, minWidth: 150, borderRight: '1px solid #e5e7eb' }}>Employee</th>
+                      {days.map(d => (
+                        <th key={d} style={{ padding: '10px 4px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#9ca3af', minWidth: 28 }}>{d}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {markEmployees.length === 0 ? (
+                      <tr><td colSpan={daysInMonth + 1} style={{ padding: 24, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No employees found</td></tr>
+                    ) : markEmployees.map(emp => (
+                      <tr key={emp.user_id} style={{ borderTop: '1px solid #f3f4f6' }}>
+                        <td style={{ padding: '6px 12px', fontSize: 12, fontWeight: 500, color: '#111827', position: 'sticky', left: 0, background: '#fff', zIndex: 1, borderRight: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
+                          {emp.user_name}
+                        </td>
+                        {days.map(d => {
+                          const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                          const status = markGrid[emp.user_id]?.[dateStr];
+                          const key = `${emp.user_id}-${dateStr}`;
+                          const cs = status ? CELL[status] : null;
+                          return (
+                            <td key={d} onClick={() => handleCell(emp.user_id, d)} style={{ padding: '4px 2px', textAlign: 'center', cursor: 'pointer' }}>
+                              {cs ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 4, background: cs.bg, color: cs.color, fontSize: 10, fontWeight: 700, opacity: markSaving === key ? 0.4 : 1 }}>{cs.label}</span>
+                              ) : (
+                                <span style={{ display: 'inline-block', width: 22, height: 22, borderRadius: 4, background: '#f3f4f6', opacity: markSaving === key ? 0.4 : 1 }} />
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── MANAGE LEAVES (Admin/HR) ── */}
       {tab === 'manage-leaves' && isAdmin && (

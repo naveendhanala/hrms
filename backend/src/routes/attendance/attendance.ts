@@ -232,4 +232,18 @@ router.put('/leaves/:id/reject', authenticateToken, requireRole('admin', 'hr'), 
   res.json(await db.queryOne('SELECT * FROM leaves WHERE id = ?', [req.params.id]));
 });
 
+router.put('/manual', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+  const { user_id, date, status } = req.body;
+  if (!user_id || !date || !status) return res.status(400).json({ error: 'user_id, date and status required' });
+  if (!['present', 'absent', 'leave'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
+  const now = new Date().toISOString();
+  await db.run(
+    `INSERT INTO attendance (user_id, date, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(user_id, date) DO UPDATE SET status = ?, updated_at = ?`,
+    [user_id, date, status, now, now, status, now],
+  );
+  res.json({ ok: true });
+});
+
 export default router;
