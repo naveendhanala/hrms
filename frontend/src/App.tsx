@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
 import EmployeesPage from './pages/EmployeesPage';
 import PayrollPage from './pages/PayrollPage';
+import SalaryMasterPage from './pages/SalaryMasterPage';
 import AttendancePage from './pages/attendance/AttendancePage';
 import FeedbackPage from './pages/ats/FeedbackPage';
 
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/attendance" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee']}><AttendancePage /></ProtectedRoute>} />
           <Route path="/employees" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><EmployeesPage /></ProtectedRoute>} />
           <Route path="/payroll" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><PayrollPage /></ProtectedRoute>} />
+          <Route path="/payroll/salary-master" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><SalaryMasterPage /></ProtectedRoute>} />
           <Route path="/feedback" element={<FeedbackPage />} />
 
           {/* Knowledge Base */}

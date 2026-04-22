@@ -11,44 +11,50 @@ function getDaysInMonth(month: number, year: number): number {
 router.get('/salary-master', authenticateToken, requireRole('admin', 'hr'), async (_req: AuthRequest, res: Response) => {
   const rows = await db.query(`
     SELECT u.id AS employee_id, u.emp_id, u.name AS employee_name, u.role AS employee_role,
-           COALESCE(s.basic_salary,    0) AS basic_salary,
-           COALESCE(s.meal_allowance,  0) AS meal_allowance,
-           COALESCE(s.fuel_allowance,  0) AS fuel_allowance,
-           COALESCE(s.driver_allowance,0) AS driver_allowance,
-           COALESCE(s.deductions,      0) AS deductions,
+           COALESCE(s.basic_salary,       0) AS basic_salary,
+           COALESCE(s.hra,                0) AS hra,
+           COALESCE(s.meal_allowance,     0) AS meal_allowance,
+           COALESCE(s.fuel_allowance,     0) AS fuel_allowance,
+           COALESCE(s.driver_allowance,   0) AS driver_allowance,
+           COALESCE(s.special_allowance,  0) AS special_allowance,
+           COALESCE(s.deductions,         0) AS deductions,
            s.updated_at
     FROM users u
     LEFT JOIN salary_master s ON s.employee_id = u.id
-    WHERE u.role != 'admin'
+    WHERE u.role != 'admin' AND u.status = 'active'
     ORDER BY u.name ASC
   `);
   res.json(rows);
 });
 
 router.put('/salary-master/:userId', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
-  const { basic_salary, meal_allowance, fuel_allowance, driver_allowance, deductions } = req.body;
+  const { basic_salary, hra, meal_allowance, fuel_allowance, driver_allowance, special_allowance, deductions } = req.body;
   const now = new Date().toISOString();
 
   const user = await db.queryOne("SELECT id FROM users WHERE id = ? AND role != 'admin'", [req.params.userId]);
   if (!user) return res.status(404).json({ error: 'Employee not found' });
 
   await db.run(`
-    INSERT INTO salary_master (employee_id, basic_salary, meal_allowance, fuel_allowance, driver_allowance, deductions, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO salary_master (employee_id, basic_salary, hra, meal_allowance, fuel_allowance, driver_allowance, special_allowance, deductions, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(employee_id) DO UPDATE SET
-      basic_salary     = excluded.basic_salary,
-      meal_allowance   = excluded.meal_allowance,
-      fuel_allowance   = excluded.fuel_allowance,
-      driver_allowance = excluded.driver_allowance,
-      deductions       = excluded.deductions,
-      updated_at       = excluded.updated_at
+      basic_salary      = excluded.basic_salary,
+      hra               = excluded.hra,
+      meal_allowance    = excluded.meal_allowance,
+      fuel_allowance    = excluded.fuel_allowance,
+      driver_allowance  = excluded.driver_allowance,
+      special_allowance = excluded.special_allowance,
+      deductions        = excluded.deductions,
+      updated_at        = excluded.updated_at
   `, [
     Number(req.params.userId),
-    basic_salary     ?? 0,
-    meal_allowance   ?? 0,
-    fuel_allowance   ?? 0,
-    driver_allowance ?? 0,
-    deductions       ?? 0,
+    basic_salary      ?? 0,
+    hra               ?? 0,
+    meal_allowance    ?? 0,
+    fuel_allowance    ?? 0,
+    driver_allowance  ?? 0,
+    special_allowance ?? 0,
+    deductions        ?? 0,
     now,
   ]);
 
@@ -102,14 +108,16 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
 
   const employees = await db.query<any>(`
     SELECT u.id,
-           COALESCE(s.basic_salary,     0) AS basic_salary,
-           COALESCE(s.meal_allowance,   0) AS meal_allowance,
-           COALESCE(s.fuel_allowance,   0) AS fuel_allowance,
-           COALESCE(s.driver_allowance, 0) AS driver_allowance,
-           COALESCE(s.deductions,       0) AS deductions
+           COALESCE(s.basic_salary,      0) AS basic_salary,
+           COALESCE(s.hra,               0) AS hra,
+           COALESCE(s.meal_allowance,    0) AS meal_allowance,
+           COALESCE(s.fuel_allowance,    0) AS fuel_allowance,
+           COALESCE(s.driver_allowance,  0) AS driver_allowance,
+           COALESCE(s.special_allowance, 0) AS special_allowance,
+           COALESCE(s.deductions,        0) AS deductions
     FROM users u
     LEFT JOIN salary_master s ON s.employee_id = u.id
-    WHERE u.role != 'admin'
+    WHERE u.role != 'admin' AND u.status = 'active'
   `);
 
   const insertSql = `
@@ -147,7 +155,7 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
 
     const lopFromLeaves   = lopRow?.total ?? 0;
     const lopDays         = absentDays + lopFromLeaves;
-    const totalAllowances = emp.meal_allowance + emp.fuel_allowance + emp.driver_allowance;
+    const totalAllowances = emp.hra + emp.meal_allowance + emp.fuel_allowance + emp.driver_allowance + emp.special_allowance;
     const grossSalary     = emp.basic_salary + totalAllowances;
     const lopDeduction    = totalDays > 0 ? Math.round((lopDays * grossSalary) / totalDays * 100) / 100 : 0;
 

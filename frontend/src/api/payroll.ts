@@ -48,9 +48,11 @@ export interface SalaryMasterEntry {
   employee_name: string;
   employee_role: string;
   basic_salary: number;
+  hra: number;
   meal_allowance: number;
   fuel_allowance: number;
   driver_allowance: number;
+  special_allowance: number;
   deductions: number;
   updated_at: string | null;
 }
@@ -92,7 +94,7 @@ export const getSalaryMaster = () =>
 
 export const updateSalaryMaster = (
   userId: number,
-  data: { basic_salary: number; meal_allowance: number; fuel_allowance: number; driver_allowance: number; deductions: number }
+  data: { basic_salary: number; hra: number; meal_allowance: number; fuel_allowance: number; driver_allowance: number; special_allowance: number; deductions: number }
 ) =>
   apiFetch<{ ok: boolean }>(`${BASE}/salary-master/${userId}`, {
     method: 'PUT',

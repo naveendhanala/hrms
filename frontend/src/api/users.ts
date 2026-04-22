@@ -10,6 +10,7 @@ export interface Employee {
   dob: string | null;
   project: string;
   location: string;
+  state: string;
   status: string;
   created_at: string;
   reporting_manager_id: number | null;
@@ -29,6 +30,7 @@ export interface EmployeeUpdate {
   dob?: string;
   project?: string;
   location?: string;
+  state?: string;
   status?: string;
   reporting_manager_id?: number | null;
 }
