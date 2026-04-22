@@ -263,8 +263,8 @@ export default function AppLayout({ children }: Props) {
             );
           })}
 
-          {/* Salary Master sub-item — only visible to roles that can access Payroll */}
-          {MODULE_ACCESS['PAYROLL']?.includes(user.role) && (
+          {/* Salary Master sub-item — only visible when Payroll section is active */}
+          {activeModule === 'PAYROLL' && MODULE_ACCESS['PAYROLL']?.includes(user.role) && (
             <button
               onClick={() => navigate('/payroll/salary-master')}
               style={{
