@@ -9,8 +9,8 @@ function fmt(n: number) {
 }
 
 const inputStyle: React.CSSProperties = {
-  width: '90px', padding: '4px 6px', border: '1px solid #d1d5db',
-  borderRadius: 6, fontSize: 13, textAlign: 'right' as const,
+  width: '72px', padding: '3px 5px', border: '1px solid #d1d5db',
+  borderRadius: 6, fontSize: 12, textAlign: 'right' as const,
 };
 
 type SMEditMap = Record<number, {
@@ -80,12 +80,12 @@ export default function SalaryMasterPage() {
     employeeId: number,
     e: SMEditMap[number] | undefined,
   ) => isEditing && e ? (
-    <td style={{ padding: '8px 14px' }}>
+    <td style={{ padding: '6px 4px' }}>
       <input style={inputStyle} type="number" min="0" value={e[field]}
         onChange={ev => setSmEdits(p => ({ ...p, [employeeId]: { ...p[employeeId], [field]: ev.target.value } }))} />
     </td>
   ) : (
-    <td style={{ padding: '12px 14px', fontSize: 13, color: val > 0 ? '#374151' : '#d1d5db', textAlign: 'right' }}>
+    <td style={{ padding: '10px 8px', fontSize: 12, color: val > 0 ? '#374151' : '#d1d5db', textAlign: 'right', whiteSpace: 'nowrap' }}>
       {val > 0 ? fmt(val) : '—'}
     </td>
   );
@@ -110,12 +110,26 @@ export default function SalaryMasterPage() {
       {loading ? (
         <p style={{ color: '#9ca3af', fontSize: 14 }}>Loading…</p>
       ) : (
-        <div style={{ background: '#fff', borderRadius: 14, overflow: 'auto', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1100 }}>
+        <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: '7%' }} />   {/* Emp ID */}
+              <col style={{ width: '13%' }} />  {/* Employee */}
+              <col style={{ width: '8%' }} />   {/* Role */}
+              <col style={{ width: '10%' }} />  {/* Gross */}
+              <col style={{ width: '9%' }} />   {/* Basic */}
+              <col style={{ width: '7%' }} />   {/* HRA */}
+              <col style={{ width: '9%' }} />   {/* Meal */}
+              <col style={{ width: '8%' }} />   {/* Fuel */}
+              <col style={{ width: '9%' }} />   {/* Driver */}
+              <col style={{ width: '9%' }} />   {/* Special */}
+              <col style={{ width: '8%' }} />   {/* Updated */}
+              <col style={{ width: '8%' }} />   {/* Action */}
+            </colgroup>
             <thead>
               <tr style={{ background: '#f9fafb' }}>
-                {['Emp ID', 'Employee', 'Role', 'Gross Salary', 'Basic Salary', 'HRA', 'Meal Allowance', 'Fuel Allowance', 'Driver Allowance', 'Special Allowance', 'Last Updated', ''].map(h => (
-                  <th key={h} style={{ padding: '11px 14px', textAlign: h === '' ? 'center' : 'left', fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{h}</th>
+                {['Emp ID', 'Employee', 'Role', 'Gross', 'Basic', 'HRA', 'Meal Allow.', 'Fuel Allow.', 'Driver Allow.', 'Special Allow.', 'Updated', ''].map(h => (
+                  <th key={h} style={{ padding: '9px 8px', textAlign: h === '' ? 'center' : 'left', fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -129,12 +143,12 @@ export default function SalaryMasterPage() {
 
                 return (
                   <tr key={entry.employee_id} style={{ borderTop: '1px solid #f3f4f6', background: isEditing ? '#faf5ff' : 'transparent' }}>
-                    <td style={{ padding: '12px 14px', fontSize: 13, color: '#6b7280', fontFamily: 'monospace' }}>
+                    <td style={{ padding: '10px 8px', fontSize: 12, color: '#6b7280', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {entry.emp_id ?? <span style={{ color: '#d1d5db' }}>—</span>}
                     </td>
-                    <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: '#111827', whiteSpace: 'nowrap' }}>{entry.employee_name}</td>
-                    <td style={{ padding: '12px 14px', fontSize: 12, color: '#6b7280', textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{entry.employee_role}</td>
-                    <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: gross > 0 ? '#1e40af' : '#d1d5db', textAlign: 'right' }}>
+                    <td style={{ padding: '10px 8px', fontSize: 12, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.employee_name}>{entry.employee_name}</td>
+                    <td style={{ padding: '10px 8px', fontSize: 11, color: '#6b7280', textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.employee_role}</td>
+                    <td style={{ padding: '10px 8px', fontSize: 12, fontWeight: 600, color: gross > 0 ? '#1e40af' : '#d1d5db', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {gross > 0 ? fmt(gross) : '—'}
                     </td>
                     {tdNum(entry.basic_salary,      isEditing, 'basic_salary',      entry.employee_id, e)}
@@ -143,27 +157,27 @@ export default function SalaryMasterPage() {
                     {tdNum(entry.fuel_allowance,    isEditing, 'fuel_allowance',    entry.employee_id, e)}
                     {tdNum(entry.driver_allowance,  isEditing, 'driver_allowance',  entry.employee_id, e)}
                     {tdNum(entry.special_allowance, isEditing, 'special_allowance', entry.employee_id, e)}
-                    <td style={{ padding: '12px 14px', fontSize: 12, color: '#9ca3af', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '10px 8px', fontSize: 11, color: '#9ca3af', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {entry.updated_at
-                        ? new Date(entry.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                        : 'Not set'}
+                        ? new Date(entry.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+                        : '—'}
                     </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>
                       {isEditing ? (
-                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                        <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
                           <button onClick={() => handleSmSave(entry.employee_id)} disabled={smSaving === entry.employee_id} style={{
-                            padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                            background: '#dcfce7', color: '#166534', fontWeight: 600, fontSize: 12,
+                            padding: '3px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                            background: '#dcfce7', color: '#166534', fontWeight: 600, fontSize: 11,
                           }}>{smSaving === entry.employee_id ? '…' : 'Save'}</button>
                           <button onClick={() => setSmEditingRow(null)} style={{
-                            padding: '4px 10px', borderRadius: 6, border: '1px solid #e5e7eb', cursor: 'pointer',
-                            background: '#fff', color: '#6b7280', fontSize: 12,
-                          }}>Cancel</button>
+                            padding: '3px 8px', borderRadius: 6, border: '1px solid #e5e7eb', cursor: 'pointer',
+                            background: '#fff', color: '#6b7280', fontSize: 11,
+                          }}>✕</button>
                         </div>
                       ) : (
                         <button onClick={() => startSmEdit(entry)} style={{
-                          padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                          background: '#ede9fe', color: '#6d28d9', fontWeight: 600, fontSize: 12,
+                          padding: '3px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                          background: '#ede9fe', color: '#6d28d9', fontWeight: 600, fontSize: 11,
                         }}>Edit</button>
                       )}
                     </td>
