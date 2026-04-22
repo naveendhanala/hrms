@@ -33,8 +33,12 @@ export default function LoginPage() {
       const res = await login(username, password);
       authLogin(res.token, res.user);
       navigate(ROLE_ROUTES[res.user.role]);
-    } catch {
-      setError('Invalid credentials');
+    } catch (err: any) {
+      if (err?.status === 401) {
+        setError('Invalid credentials');
+      } else {
+        setError('Server error — check that the backend is running and DATABASE_URL is configured.');
+      }
     } finally {
       setLoading(false);
     }

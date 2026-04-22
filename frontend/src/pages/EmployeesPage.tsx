@@ -2,24 +2,7 @@ import { useEffect, useState } from 'react';
 import AppLayout from '../components/shared/AppLayout';
 import Modal from '../components/shared/Modal';
 import CreateEmployeeForm from '../components/lms/admin/CreateEmployeeForm';
-import { useAuth } from '../context/AuthContext';
-import { getManagers, updateEmployee, type Manager } from '../api/users';
-
-interface Employee {
-  id: number;
-  emp_id: string | null;
-  username: string;
-  email: string;
-  name: string;
-  role: string;
-  dob: string | null;
-  project: string;
-  location: string;
-  status: string;
-  created_at: string;
-  reporting_manager_id: number | null;
-  reporting_manager_name: string | null;
-}
+import { getEmployees, getManagers, updateEmployee, type Employee, type Manager } from '../api/users';
 
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   admin:        { bg: '#ede9fe', text: '#6d28d9' },
@@ -67,7 +50,6 @@ function CrossIcon() {
 }
 
 export default function EmployeesPage() {
-  const { token } = useAuth();
   const [tab, setTab] = useState<'list' | 'permissions'>('list');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [managers, setManagers] = useState<Manager[]>([]);
@@ -81,14 +63,8 @@ export default function EmployeesPage() {
 
   const fetchEmployees = () => {
     setLoading(true);
-    fetch('http://localhost:4000/api/users', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error('Failed to fetch employees');
-        return r.json();
-      })
-      .then((data) => setEmployees(data))
+    getEmployees()
+      .then(setEmployees)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   };
@@ -96,7 +72,7 @@ export default function EmployeesPage() {
   useEffect(() => {
     fetchEmployees();
     getManagers().then(setManagers).catch(() => {});
-  }, [token]);
+  }, []);
 
   const openEdit = (emp: Employee) => {
     setEditingEmployee(emp);
