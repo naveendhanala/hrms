@@ -7,6 +7,7 @@ import {
   approveLeave, rejectLeave, getLeaveBalance, setManualAttendance,
   type AttendanceRecord, type LeaveRequest, type AttendanceSummary, type EmployeeAttendanceSummary,
 } from '../../api/attendance';
+import { getEmployees } from '../../api/users';
 
 type Tab = 'summary' | 'overview' | 'history' | 'leaves' | 'all-attendance' | 'manage-leaves' | 'mark-attendance';
 
@@ -68,10 +69,10 @@ export default function AttendancePage() {
   const [actionMsg, setActionMsg] = useState('');
 
   // mark-attendance state
-  type AttStatus = 'present' | 'absent' | 'leave';
-  const [markGrid, setMarkGrid] = useState<Record<number, Record<string, AttStatus>>>({});
+  const [markGrid, setMarkGrid] = useState<Record<number, Record<string, string>>>({});
   const [markEmployees, setMarkEmployees] = useState<{ user_id: number; user_name: string }[]>([]);
   const [markLoading, setMarkLoading] = useState(false);
+  const [markError, setMarkError] = useState('');
   const [markSaving, setMarkSaving] = useState<string | null>(null);
 
   // Leave form
@@ -125,19 +126,25 @@ export default function AttendancePage() {
 
   const loadMarkAttendance = useCallback(async () => {
     setMarkLoading(true);
+    setMarkError('');
     try {
-      const [empReport, records] = await Promise.all([
-        getAttendanceReport(month, year),
+      const [employees, records] = await Promise.all([
+        getEmployees(),
         getAllAttendance(month, year),
       ]);
-      setMarkEmployees(empReport.map(e => ({ user_id: e.user_id, user_name: e.user_name })));
-      const grid: Record<number, Record<string, AttStatus>> = {};
+      const active = employees.filter(e => e.role !== 'admin' && e.status === 'active');
+      setMarkEmployees(active.map(e => ({ user_id: e.id, user_name: e.name })));
+      const grid: Record<number, Record<string, string>> = {};
       for (const r of records) {
         if (!grid[r.user_id]) grid[r.user_id] = {};
-        grid[r.user_id][r.date] = r.status as AttStatus;
+        grid[r.user_id][r.date] = r.status;
       }
       setMarkGrid(grid);
-    } finally { setMarkLoading(false); }
+    } catch (err: any) {
+      setMarkError(err.message || 'Failed to load attendance data');
+    } finally {
+      setMarkLoading(false);
+    }
   }, [month, year]);
 
   useEffect(() => { if (tab === 'summary') loadReport(); }, [tab, loadReport]);
@@ -577,7 +584,7 @@ export default function AttendancePage() {
       {tab === 'mark-attendance' && isAdmin && (() => {
         const daysInMonth = new Date(year, month, 0).getDate();
         const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-        const CYCLE: Record<string, AttStatus> = { present: 'absent', absent: 'leave', leave: 'present' };
+        const CYCLE: Record<string, 'present' | 'absent' | 'leave'> = { present: 'absent', absent: 'leave', leave: 'present' };
         const CELL: Record<string, { bg: string; color: string; label: string }> = {
           present: { bg: '#dcfce7', color: '#166534', label: 'P' },
           absent:  { bg: '#fee2e2', color: '#991b1b', label: 'A' },
@@ -587,8 +594,8 @@ export default function AttendancePage() {
           const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
           const key = `${userId}-${dateStr}`;
           if (markSaving === key) return;
-          const current = markGrid[userId]?.[dateStr] as AttStatus | undefined;
-          const next: AttStatus = current ? CYCLE[current] : 'present';
+          const current = markGrid[userId]?.[dateStr];
+          const next = current ? CYCLE[current] || 'present' : 'present';
           setMarkGrid(prev => ({ ...prev, [userId]: { ...prev[userId], [dateStr]: next } }));
           setMarkSaving(key);
           try {
@@ -613,6 +620,12 @@ export default function AttendancePage() {
               </select>
               <span style={{ fontSize: 12, color: '#9ca3af' }}>Click a cell to cycle: <b style={{ color: '#166534' }}>P</b>resent → <b style={{ color: '#991b1b' }}>A</b>bsent → <b style={{ color: '#1e40af' }}>L</b>eave</span>
             </div>
+            {markError && (
+              <div style={{ marginBottom: 12, padding: '10px 16px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 13 }}>
+                {markError}
+                <button onClick={loadMarkAttendance} style={{ marginLeft: 12, padding: '2px 10px', borderRadius: 5, border: '1px solid #fca5a5', background: '#fff', color: '#991b1b', cursor: 'pointer', fontSize: 12 }}>Retry</button>
+              </div>
+            )}
             {markLoading ? <p style={{ color: '#9ca3af', fontSize: 13 }}>Loading...</p> : (
               <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', overflowX: 'auto' }}>
                 <table style={{ borderCollapse: 'collapse', minWidth: '100%' }}>
