@@ -10,6 +10,7 @@ export interface AuthRequest extends Request {
     role: string;
     name: string;
     username: string;
+    site_office?: string;
   };
 }
 

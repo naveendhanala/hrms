@@ -460,7 +460,10 @@ export default function AttendancePage() {
               </div>
               <div style={{ background: '#fff', borderRadius: 10, padding: '12px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
                 <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Credit Policy</p>
-                <p style={{ margin: '2px 0 0', fontSize: 13, color: '#374151' }}>2 days / month &nbsp;·&nbsp; Carry-forward &nbsp;·&nbsp; Resets in April</p>
+                <p style={{ margin: '2px 0 0', fontSize: 13, color: '#374151' }}>
+                  {user?.site_office === 'Site' ? '9 days / quarter' : user?.site_office === 'Office' ? '5 days / quarter' : '—'}
+                  &nbsp;·&nbsp; Carry-forward &nbsp;·&nbsp; Resets in April
+                </p>
               </div>
             </div>
             <button onClick={() => setShowLeaveForm(v => !v)} style={{

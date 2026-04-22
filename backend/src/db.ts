@@ -60,6 +60,7 @@ async function _runMigrations(): Promise<void> {
     pool.query(`ALTER TABLE salary_master ADD COLUMN IF NOT EXISTS hra               REAL NOT NULL DEFAULT 0`),
     pool.query(`ALTER TABLE salary_master ADD COLUMN IF NOT EXISTS special_allowance REAL NOT NULL DEFAULT 0`),
     pool.query(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS lop BOOLEAN NOT NULL DEFAULT false`),
+    pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS designation TEXT NOT NULL DEFAULT ''`),
   ]);
 }
 

@@ -92,6 +92,7 @@ export default function EmployeesPage() {
         location:             editForm.location ?? '',
         state:                editForm.state ?? '',
         site_office:          editForm.site_office ?? '',
+        designation:          editForm.designation ?? '',
         status:               editForm.status ?? 'active',
         reporting_manager_id: editForm.reporting_manager_id ?? null,
       });
@@ -196,7 +197,7 @@ export default function EmployeesPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #f3f4f6' }}>
-                  {['Employee', 'Emp ID', 'Role', 'Status', 'Project', 'Location', 'State', 'Site/Office', 'Reporting Manager', ''].map((h) => (
+                  {['Employee', 'Emp ID', 'Role', 'Designation', 'Status', 'Project', 'Location', 'State', 'Site/Office', 'Reporting Manager', ''].map((h) => (
                     <th
                       key={h}
                       style={{
@@ -217,7 +218,7 @@ export default function EmployeesPage() {
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={10} style={{ padding: 32, textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>
+                    <td colSpan={11} style={{ padding: 32, textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>
                       No employees found
                     </td>
                   </tr>
@@ -258,6 +259,10 @@ export default function EmployeesPage() {
                           <span style={{ padding: '2px 9px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: roleColor.bg, color: roleColor.text, textTransform: 'capitalize' }}>
                             {emp.role}
                           </span>
+                        </td>
+                        {/* Designation */}
+                        <td style={{ padding: '12px 18px', fontSize: 13, color: '#374151' }}>
+                          {emp.designation || <span style={{ color: '#d1d5db' }}>—</span>}
                         </td>
                         {/* Status */}
                         <td style={{ padding: '12px 18px' }}>
@@ -435,6 +440,15 @@ export default function EmployeesPage() {
                   <option value="Site">Site</option>
                   <option value="Office">Office</option>
                 </select>
+              </div>
+            </div>
+            {/* Row 3c */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Designation</label>
+                <input className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="e.g. Senior Engineer"
+                  value={editForm.designation ?? ''} onChange={e => setEditForm(f => ({ ...f, designation: e.target.value }))} />
               </div>
             </div>
             {/* Row 4 */}
