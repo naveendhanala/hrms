@@ -46,7 +46,33 @@ export async function ensureInit(): Promise<void> {
   _initialized = true;
 }
 
+async function _runMigrations(): Promise<void> {
+  // Column migrations — run in parallel, all idempotent
+  await Promise.all([
+    pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reporting_manager_id INTEGER REFERENCES users(id)`),
+    pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS emp_id    TEXT`),
+    pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS dob       TEXT`),
+    pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS project   TEXT NOT NULL DEFAULT ''`),
+    pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS location  TEXT NOT NULL DEFAULT ''`),
+    pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS state     TEXT NOT NULL DEFAULT ''`),
+    pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status    TEXT NOT NULL DEFAULT 'active'`),
+    pool.query(`ALTER TABLE salary_master ADD COLUMN IF NOT EXISTS hra               REAL NOT NULL DEFAULT 0`),
+    pool.query(`ALTER TABLE salary_master ADD COLUMN IF NOT EXISTS special_allowance REAL NOT NULL DEFAULT 0`),
+  ]);
+}
+
 async function _init(): Promise<void> {
+  // Fast path: if users table already exists, only run lightweight column migrations
+  const { rows } = await pool.query(`
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'users'
+  `);
+  if (rows.length > 0) {
+    await _runMigrations();
+    return;
+  }
+
+  // First-run path: create all tables, then migrations, then seed
   // ── Users ────────────────────────────────────────────────────────────────────
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -59,13 +85,6 @@ async function _init(): Promise<void> {
       created_at    TEXT    NOT NULL DEFAULT ''
     )
   `);
-  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reporting_manager_id INTEGER REFERENCES users(id)`);
-  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS emp_id    TEXT`);
-  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS dob       TEXT`);
-  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS project   TEXT NOT NULL DEFAULT ''`);
-  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS location  TEXT NOT NULL DEFAULT ''`);
-  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS state     TEXT NOT NULL DEFAULT ''`);
-  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status    TEXT NOT NULL DEFAULT 'active'`);
 
   // ── ATS ──────────────────────────────────────────────────────────────────────
   await pool.query(`
@@ -117,8 +136,6 @@ async function _init(): Promise<void> {
       updated_at             TEXT NOT NULL DEFAULT ''
     )
   `);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_candidates_job ON candidates(job_id)`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_positions_job  ON positions(job_id)`);
 
   // ── LMS ──────────────────────────────────────────────────────────────────────
   await pool.query(`
@@ -160,9 +177,6 @@ async function _init(): Promise<void> {
       UNIQUE(user_id, course_id)
     )
   `);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_questions_course ON questions(course_id)`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_attempts_user    ON attempts(user_id)`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_attempts_course  ON attempts(course_id)`);
 
   // ── Attendance ───────────────────────────────────────────────────────────────
   await pool.query(`
@@ -196,9 +210,6 @@ async function _init(): Promise<void> {
       updated_at  TEXT    NOT NULL DEFAULT ''
     )
   `);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_attendance_user ON attendance(user_id)`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date)`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_leaves_user     ON leaves(user_id)`);
 
   // ── Announcements ────────────────────────────────────────────────────────────
   await pool.query(`
@@ -209,7 +220,6 @@ async function _init(): Promise<void> {
       created_at TEXT    NOT NULL DEFAULT ''
     )
   `);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_announcements_user ON announcements(user_id)`);
 
   // ── Salary master ────────────────────────────────────────────────────────────
   await pool.query(`
@@ -228,9 +238,6 @@ async function _init(): Promise<void> {
       updated_at             TEXT    NOT NULL DEFAULT ''
     )
   `);
-  await pool.query(`ALTER TABLE salary_master ADD COLUMN IF NOT EXISTS hra               REAL NOT NULL DEFAULT 0`);
-  await pool.query(`ALTER TABLE salary_master ADD COLUMN IF NOT EXISTS special_allowance REAL NOT NULL DEFAULT 0`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_salary_master_employee ON salary_master(employee_id)`);
 
   // ── Payroll ──────────────────────────────────────────────────────────────────
   await pool.query(`
@@ -281,7 +288,6 @@ async function _init(): Promise<void> {
       updated_at TEXT    NOT NULL DEFAULT ''
     )
   `);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_kb_articles_category ON kb_articles(category)`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS subcontractors (
       id               SERIAL  PRIMARY KEY,
@@ -300,7 +306,6 @@ async function _init(): Promise<void> {
       updated_at       TEXT    NOT NULL DEFAULT ''
     )
   `);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_subcontractors_status ON subcontractors(status)`);
 
   // ── Leave balances ───────────────────────────────────────────────────────────
   await pool.query(`
@@ -310,6 +315,24 @@ async function _init(): Promise<void> {
       updated_at TEXT    NOT NULL DEFAULT ''
     )
   `);
+
+  // ── Indexes ──────────────────────────────────────────────────────────────────
+  await Promise.all([
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_candidates_job        ON candidates(job_id)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_positions_job         ON positions(job_id)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_questions_course      ON questions(course_id)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_attempts_user         ON attempts(user_id)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_attempts_course       ON attempts(course_id)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_attendance_user       ON attendance(user_id)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_attendance_date       ON attendance(date)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_leaves_user           ON leaves(user_id)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_announcements_user    ON announcements(user_id)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_salary_master_employee ON salary_master(employee_id)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_kb_articles_category  ON kb_articles(category)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_subcontractors_status ON subcontractors(status)`),
+  ]);
+
+  await _runMigrations();
 
   // ── Seed default users on first run ──────────────────────────────────────────
   const adminExists = await db.queryOne("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
