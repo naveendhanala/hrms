@@ -50,8 +50,6 @@ export default function PayrollPage() {
     try {
       const data = await getPayrollRun(month, year);
       setRun(data);
-      setSmEdits({});
-      setSmEditingRow(null);
     } finally { setLoading(false); }
   }, [month, year]);
 
