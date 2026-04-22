@@ -112,3 +112,9 @@ export const setManualAttendance = (userId: number, date: string, status: 'prese
     method: 'PUT',
     body: JSON.stringify({ user_id: userId, date, status }),
   });
+
+export const getAllLeaveBalances = () =>
+  apiFetch<{ user_id: number; balance: number }[]>(`${BASE}/leave-balances/all`);
+
+export const grantQuarterlyLeaves = () =>
+  apiFetch<{ ok: boolean; site: number; office: number }>(`${BASE}/grant-quarterly-leaves`, { method: 'POST' });

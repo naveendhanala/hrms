@@ -5,6 +5,7 @@ import {
   getToday, getSummary, getMyAttendance, getAllAttendance, getAttendanceReport,
   getMyLeaves, getAllLeaves, checkIn, checkOut, applyLeave,
   approveLeave, rejectLeave, getLeaveBalance, setManualAttendance,
+  getAllLeaveBalances, grantQuarterlyLeaves,
   type AttendanceRecord, type LeaveRequest, type AttendanceSummary, type EmployeeAttendanceSummary,
 } from '../../api/attendance';
 import { getEmployees } from '../../api/users';
@@ -71,9 +72,11 @@ export default function AttendancePage() {
   // mark-attendance state
   const [markGrid, setMarkGrid] = useState<Record<number, Record<string, string>>>({});
   const [markEmployees, setMarkEmployees] = useState<{ user_id: number; user_name: string }[]>([]);
+  const [markBalances, setMarkBalances] = useState<Record<number, number>>({});
   const [markLoading, setMarkLoading] = useState(false);
   const [markError, setMarkError] = useState('');
   const [markSaving, setMarkSaving] = useState<string | null>(null);
+  const [markGranting, setMarkGranting] = useState(false);
 
   // Leave form
   const [leaveForm, setLeaveForm] = useState({ start_date: '', end_date: '', type: 'casual', reason: '' });
@@ -128,9 +131,10 @@ export default function AttendancePage() {
     setMarkLoading(true);
     setMarkError('');
     try {
-      const [employees, records] = await Promise.all([
+      const [employees, records, balances] = await Promise.all([
         getEmployees(),
         getAllAttendance(month, year),
+        getAllLeaveBalances(),
       ]);
       const active = employees.filter(e => e.role !== 'admin' && e.status === 'active');
       setMarkEmployees(active.map(e => ({ user_id: e.id, user_name: e.name })));
@@ -140,6 +144,9 @@ export default function AttendancePage() {
         grid[r.user_id][r.date] = r.status;
       }
       setMarkGrid(grid);
+      const balMap: Record<number, number> = {};
+      for (const b of balances) balMap[b.user_id] = b.balance;
+      setMarkBalances(balMap);
     } catch (err: any) {
       setMarkError(err.message || 'Failed to load attendance data');
     } finally {
@@ -590,6 +597,15 @@ export default function AttendancePage() {
           absent:  { bg: '#fee2e2', color: '#991b1b', label: 'A' },
           leave:   { bg: '#dbeafe', color: '#1e40af', label: 'L' },
         };
+        const refreshBalances = async () => {
+          try {
+            const balances = await getAllLeaveBalances();
+            const balMap: Record<number, number> = {};
+            for (const b of balances) balMap[b.user_id] = b.balance;
+            setMarkBalances(balMap);
+          } catch {} // non-critical
+        };
+
         const handleCell = async (userId: number, day: number) => {
           const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
           const key = `${userId}-${dateStr}`;
@@ -600,6 +616,7 @@ export default function AttendancePage() {
           setMarkSaving(key);
           try {
             await setManualAttendance(userId, dateStr, next);
+            await refreshBalances();
           } catch (err: any) {
             setMarkGrid(prev => {
               const g = { ...prev[userId] };
@@ -609,16 +626,36 @@ export default function AttendancePage() {
             flash(err.message || 'Save failed');
           } finally { setMarkSaving(null); }
         };
+
+        const handleGrant = async () => {
+          setMarkGranting(true);
+          try {
+            const result = await grantQuarterlyLeaves();
+            flash(`Quarterly leaves granted — Site: ${result.site} emp, Office: ${result.office} emp`);
+            await refreshBalances();
+          } catch (err: any) {
+            flash(err.message || 'Grant failed');
+          } finally { setMarkGranting(false); }
+        };
         return (
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-              <select value={month} onChange={e => setMonth(Number(e.target.value))} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #e5e7eb', fontSize: 13 }}>
-                {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-              </select>
-              <select value={year} onChange={e => setYear(Number(e.target.value))} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #e5e7eb', fontSize: 13 }}>
-                {[year - 1, year, year + 1].map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
-              <span style={{ fontSize: 12, color: '#9ca3af' }}>Click a cell to cycle: <b style={{ color: '#166534' }}>P</b>resent → <b style={{ color: '#991b1b' }}>A</b>bsent → <b style={{ color: '#1e40af' }}>L</b>eave</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <select value={month} onChange={e => setMonth(Number(e.target.value))} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #e5e7eb', fontSize: 13 }}>
+                  {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                </select>
+                <select value={year} onChange={e => setYear(Number(e.target.value))} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #e5e7eb', fontSize: 13 }}>
+                  {[year - 1, year, year + 1].map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+                <span style={{ fontSize: 12, color: '#9ca3af' }}>Click cell: <b style={{ color: '#166534' }}>P</b> → <b style={{ color: '#991b1b' }}>A</b> → <b style={{ color: '#1e40af' }}>L</b></span>
+              </div>
+              <button onClick={handleGrant} disabled={markGranting} style={{
+                padding: '6px 14px', borderRadius: 7, border: 'none', cursor: markGranting ? 'not-allowed' : 'pointer',
+                background: markGranting ? '#f3f4f6' : '#6366f1', color: markGranting ? '#9ca3af' : '#fff',
+                fontWeight: 600, fontSize: 12,
+              }}>
+                {markGranting ? 'Granting…' : 'Grant Quarterly Leaves'}
+              </button>
             </div>
             {markError && (
               <div style={{ marginBottom: 12, padding: '10px 16px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 13 }}>
@@ -632,6 +669,7 @@ export default function AttendancePage() {
                   <thead>
                     <tr style={{ background: '#f9fafb' }}>
                       <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', position: 'sticky', left: 0, background: '#f9fafb', zIndex: 1, minWidth: 150, borderRight: '1px solid #e5e7eb' }}>Employee</th>
+                      <th style={{ padding: '10px 8px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', position: 'sticky', left: 150, background: '#f9fafb', zIndex: 1, minWidth: 58, borderRight: '1px solid #e5e7eb' }}>Bal</th>
                       {days.map(d => (
                         <th key={d} style={{ padding: '10px 4px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#9ca3af', minWidth: 28 }}>{d}</th>
                       ))}
@@ -639,11 +677,14 @@ export default function AttendancePage() {
                   </thead>
                   <tbody>
                     {markEmployees.length === 0 ? (
-                      <tr><td colSpan={daysInMonth + 1} style={{ padding: 24, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No employees found</td></tr>
+                      <tr><td colSpan={daysInMonth + 2} style={{ padding: 24, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No employees found</td></tr>
                     ) : markEmployees.map(emp => (
                       <tr key={emp.user_id} style={{ borderTop: '1px solid #f3f4f6' }}>
                         <td style={{ padding: '6px 12px', fontSize: 12, fontWeight: 500, color: '#111827', position: 'sticky', left: 0, background: '#fff', zIndex: 1, borderRight: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
                           {emp.user_name}
+                        </td>
+                        <td style={{ padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 700, position: 'sticky', left: 150, background: '#fff', zIndex: 1, borderRight: '1px solid #e5e7eb', color: (markBalances[emp.user_id] ?? 0) > 0 ? '#166534' : '#9ca3af' }}>
+                          {markBalances[emp.user_id] ?? 0}
                         </td>
                         {days.map(d => {
                           const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;

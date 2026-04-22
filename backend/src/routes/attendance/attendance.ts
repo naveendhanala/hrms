@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import db from '../../db';
 import { authenticateToken, requireRole, AuthRequest } from '../../middleware/auth';
+import { grantQuarterlyLeaves } from '../../jobs/creditLeaves';
 
 const router = Router();
 
@@ -236,14 +237,69 @@ router.put('/manual', authenticateToken, requireRole('admin', 'hr'), async (req:
   const { user_id, date, status } = req.body;
   if (!user_id || !date || !status) return res.status(400).json({ error: 'user_id, date and status required' });
   if (!['present', 'absent', 'leave'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
+
   const now = new Date().toISOString();
-  await db.run(
-    `INSERT INTO attendance (user_id, date, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(user_id, date) DO UPDATE SET status = ?, updated_at = ?`,
-    [user_id, date, status, now, now, status, now],
+
+  // Fetch existing record to reverse any prior balance effect
+  const existing = await db.queryOne<any>(
+    'SELECT status, lop FROM attendance WHERE user_id = ? AND date = ?',
+    [user_id, date],
   );
+
+  // If the old status was 'leave' and it was NOT lop → restore 1 day to balance
+  if (existing?.status === 'leave' && !existing.lop) {
+    await db.run(
+      'UPDATE leave_balances SET balance = balance + 1, updated_at = ? WHERE user_id = ?',
+      [now, user_id],
+    );
+  }
+
+  // Determine lop for the new status
+  let lop = false;
+  if (status === 'absent') {
+    lop = true; // absent is always LOP
+  } else if (status === 'leave') {
+    const balRow = await db.queryOne<any>(
+      'SELECT balance FROM leave_balances WHERE user_id = ?',
+      [user_id],
+    );
+    const balance = balRow?.balance ?? 0;
+    if (balance > 0) {
+      await db.run(
+        'UPDATE leave_balances SET balance = balance - 1, updated_at = ? WHERE user_id = ?',
+        [now, user_id],
+      );
+      lop = false;
+    } else {
+      lop = true; // balance exhausted → LOP
+    }
+  }
+
+  await db.run(
+    `INSERT INTO attendance (user_id, date, status, lop, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(user_id, date) DO UPDATE SET status = ?, lop = ?, updated_at = ?`,
+    [user_id, date, status, lop, now, now, status, lop, now],
+  );
+
   res.json({ ok: true });
+});
+
+// All employee leave balances (admin/HR)
+router.get('/leave-balances/all', authenticateToken, requireRole('admin', 'hr'), async (_req: AuthRequest, res: Response) => {
+  const rows = await db.query<any>(`
+    SELECT u.id AS user_id, COALESCE(lb.balance, 0) AS balance
+    FROM users u
+    LEFT JOIN leave_balances lb ON lb.user_id = u.id
+    WHERE u.role != 'admin' AND u.status = 'active'
+  `);
+  res.json(rows);
+});
+
+// Manually trigger quarterly leave grant (admin/HR)
+router.post('/grant-quarterly-leaves', authenticateToken, requireRole('admin', 'hr'), async (_req: AuthRequest, res: Response) => {
+  const result = await grantQuarterlyLeaves();
+  res.json({ ok: true, ...result });
 });
 
 export default router;

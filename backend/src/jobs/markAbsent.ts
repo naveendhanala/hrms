@@ -5,8 +5,8 @@ export async function runMarkAbsent(): Promise<number> {
   const now   = new Date().toISOString();
 
   const result = await db.run(`
-    INSERT INTO attendance (user_id, date, status, notes, created_at, updated_at)
-    SELECT u.id, ?, 'absent', 'Auto-marked absent by system', ?, ?
+    INSERT INTO attendance (user_id, date, status, lop, notes, created_at, updated_at)
+    SELECT u.id, ?, 'absent', true, 'Auto-marked absent by system', ?, ?
     FROM users u
     WHERE u.role != 'admin'
       AND NOT EXISTS (
@@ -17,6 +17,7 @@ export async function runMarkAbsent(): Promise<number> {
       )
     ON CONFLICT(user_id, date) DO UPDATE
       SET status     = 'absent',
+          lop        = true,
           notes      = 'Auto-marked absent by system',
           updated_at = ?
       WHERE attendance.status NOT IN ('present', 'leave')

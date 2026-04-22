@@ -59,6 +59,7 @@ async function _runMigrations(): Promise<void> {
     pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS site_office TEXT NOT NULL DEFAULT ''`),
     pool.query(`ALTER TABLE salary_master ADD COLUMN IF NOT EXISTS hra               REAL NOT NULL DEFAULT 0`),
     pool.query(`ALTER TABLE salary_master ADD COLUMN IF NOT EXISTS special_allowance REAL NOT NULL DEFAULT 0`),
+    pool.query(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS lop BOOLEAN NOT NULL DEFAULT false`),
   ]);
 }
 
@@ -189,6 +190,7 @@ async function _init(): Promise<void> {
       check_in   TEXT,
       check_out  TEXT,
       status     TEXT    NOT NULL DEFAULT 'present',
+      lop        BOOLEAN NOT NULL DEFAULT false,
       work_hours REAL,
       notes      TEXT    NOT NULL DEFAULT '',
       created_at TEXT    NOT NULL DEFAULT '',

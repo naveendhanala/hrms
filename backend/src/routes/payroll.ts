@@ -143,18 +143,12 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
     const absentDays  = att?.absent_days  ?? 0;
 
     const lopRow = await db.queryOne<any>(`
-      SELECT COALESCE(SUM(lop_days), 0) AS total
-      FROM leaves
-      WHERE user_id = ?
-        AND status = 'approved'
-        AND (
-          (start_date LIKE ? OR end_date LIKE ?)
-          OR (start_date <= ? AND end_date >= ?)
-        )
-    `, [emp.id, `${monthPrefix}%`, `${monthPrefix}%`, `${monthPrefix}-31`, `${monthPrefix}-01`]);
+      SELECT COUNT(*) AS lop_count
+      FROM attendance
+      WHERE user_id = ? AND date LIKE ? AND lop = true
+    `, [emp.id, `${monthPrefix}%`]);
 
-    const lopFromLeaves   = lopRow?.total ?? 0;
-    const lopDays         = absentDays + lopFromLeaves;
+    const lopDays = Number(lopRow?.lop_count ?? 0);
     const totalAllowances = emp.hra + emp.meal_allowance + emp.fuel_allowance + emp.driver_allowance + emp.special_allowance;
     const grossSalary     = emp.basic_salary + totalAllowances;
     const lopDeduction    = totalDays > 0 ? Math.round((lopDays * grossSalary) / totalDays * 100) / 100 : 0;
