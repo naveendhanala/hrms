@@ -55,7 +55,8 @@ async function _runMigrations(): Promise<void> {
     pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS project   TEXT NOT NULL DEFAULT ''`),
     pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS location  TEXT NOT NULL DEFAULT ''`),
     pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS state     TEXT NOT NULL DEFAULT ''`),
-    pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status    TEXT NOT NULL DEFAULT 'active'`),
+    pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status      TEXT NOT NULL DEFAULT 'active'`),
+    pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS site_office TEXT NOT NULL DEFAULT ''`),
     pool.query(`ALTER TABLE salary_master ADD COLUMN IF NOT EXISTS hra               REAL NOT NULL DEFAULT 0`),
     pool.query(`ALTER TABLE salary_master ADD COLUMN IF NOT EXISTS special_allowance REAL NOT NULL DEFAULT 0`),
   ]);
@@ -82,6 +83,7 @@ async function _init(): Promise<void> {
       name          TEXT    NOT NULL,
       password_hash TEXT    NOT NULL,
       role          TEXT    NOT NULL CHECK(role IN ('admin','hr','director','projectlead','businesshead','employee')),
+      site_office   TEXT    NOT NULL DEFAULT '',
       created_at    TEXT    NOT NULL DEFAULT ''
     )
   `);

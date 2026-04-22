@@ -91,6 +91,7 @@ export default function EmployeesPage() {
         project:              editForm.project ?? '',
         location:             editForm.location ?? '',
         state:                editForm.state ?? '',
+        site_office:          editForm.site_office ?? '',
         status:               editForm.status ?? 'active',
         reporting_manager_id: editForm.reporting_manager_id ?? null,
       });
@@ -195,7 +196,7 @@ export default function EmployeesPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #f3f4f6' }}>
-                  {['Employee', 'Emp ID', 'Role', 'Status', 'Project', 'Location', 'State', 'Reporting Manager', ''].map((h) => (
+                  {['Employee', 'Emp ID', 'Role', 'Status', 'Project', 'Location', 'State', 'Site/Office', 'Reporting Manager', ''].map((h) => (
                     <th
                       key={h}
                       style={{
@@ -216,7 +217,7 @@ export default function EmployeesPage() {
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={9} style={{ padding: 32, textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>
+                    <td colSpan={10} style={{ padding: 32, textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>
                       No employees found
                     </td>
                   </tr>
@@ -275,6 +276,10 @@ export default function EmployeesPage() {
                         {/* State */}
                         <td style={{ padding: '12px 18px', fontSize: 13, color: '#374151' }}>
                           {emp.state || <span style={{ color: '#d1d5db' }}>—</span>}
+                        </td>
+                        {/* Site/Office */}
+                        <td style={{ padding: '12px 18px', fontSize: 13, color: '#374151' }}>
+                          {emp.site_office || <span style={{ color: '#d1d5db' }}>—</span>}
                         </td>
                         {/* Reporting Manager */}
                         <td style={{ padding: '12px 18px', fontSize: 13, color: emp.reporting_manager_name ? '#374151' : '#d1d5db' }}>
@@ -421,6 +426,15 @@ export default function EmployeesPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
                 <input className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   value={editForm.state ?? ''} onChange={e => setEditForm(f => ({ ...f, state: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Site/Office</label>
+                <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  value={editForm.site_office ?? ''} onChange={e => setEditForm(f => ({ ...f, site_office: e.target.value }))}>
+                  <option value="">— Select —</option>
+                  <option value="Site">Site</option>
+                  <option value="Office">Office</option>
+                </select>
               </div>
             </div>
             {/* Row 4 */}

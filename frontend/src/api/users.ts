@@ -11,6 +11,7 @@ export interface Employee {
   project: string;
   location: string;
   state: string;
+  site_office: string;
   status: string;
   created_at: string;
   reporting_manager_id: number | null;
@@ -31,6 +32,7 @@ export interface EmployeeUpdate {
   project?: string;
   location?: string;
   state?: string;
+  site_office?: string;
   status?: string;
   reporting_manager_id?: number | null;
 }
