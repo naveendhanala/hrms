@@ -73,12 +73,12 @@ function TaxSheet({ emp, onClose }: { emp: TaxEmployee; onClose: () => void }) {
                     sc.fuel_allowance    > 0 ? ['Fuel Allowance',    sc.fuel_allowance]    : null,
                     sc.driver_allowance  > 0 ? ['Driver Allowance',  sc.driver_allowance]  : null,
                     sc.special_allowance > 0 ? ['Special Allowance', sc.special_allowance] : null,
-                  ].filter(Boolean).map(([label, val], i, arr) => (
-                    <tr key={i as number} style={{ borderBottom: i < arr.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
-                      <td style={{ padding: '8px 14px', color: '#374151' }}>{label as string}</td>
-                      <td style={{ padding: '8px 14px', textAlign: 'right', color: '#374151' }}>{fmt(val as number)}</td>
+                  ].filter(Boolean).map((row, i, arr) => { const [label, val] = row as [string, number]; return (
+                    <tr key={i} style={{ borderBottom: i < arr.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
+                      <td style={{ padding: '8px 14px', color: '#374151' }}>{label}</td>
+                      <td style={{ padding: '8px 14px', textAlign: 'right', color: '#374151' }}>{fmt(val)}</td>
                     </tr>
-                  ))}
+                  ); })}
                   <tr style={{ background: '#ede9fe' }}>
                     <td style={{ padding: '10px 14px', fontWeight: 700, color: '#4c1d95' }}>Gross Monthly Salary</td>
                     <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, color: '#4c1d95' }}>{fmt(emp.monthly_gross)}</td>
