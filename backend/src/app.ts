@@ -13,6 +13,8 @@ import lmsReportsRoutes from './routes/lms/reports';
 import attendanceRoutes from './routes/attendance/attendance';
 import usersRoutes from './routes/users';
 import payrollRoutes from './routes/payroll';
+import advancesRoutes from './routes/advances';
+import taxComputationRoutes from './routes/taxComputation';
 import announcementsRoutes from './routes/announcements';
 import kbArticlesRoutes from './routes/kb/articles';
 import kbSubcontractorsRoutes from './routes/kb/subcontractors';
@@ -44,6 +46,8 @@ app.use('/api/users', usersRoutes);
 
 // Payroll module
 app.use('/api/payroll', payrollRoutes);
+app.use('/api/advances', advancesRoutes);
+app.use('/api/tax-computation', taxComputationRoutes);
 
 // Announcements module
 app.use('/api/announcements', announcementsRoutes);

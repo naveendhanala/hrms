@@ -7,6 +7,9 @@ import Dashboard from './pages/Dashboard';
 import EmployeesPage from './pages/EmployeesPage';
 import PayrollPage from './pages/PayrollPage';
 import SalaryMasterPage from './pages/SalaryMasterPage';
+import ConfigurationsPage from './pages/ConfigurationsPage';
+import AdvancesPage from './pages/AdvancesPage';
+import TaxComputationPage from './pages/TaxComputationPage';
 import AttendancePage from './pages/attendance/AttendancePage';
 import FeedbackPage from './pages/ats/FeedbackPage';
 
@@ -35,6 +38,9 @@ export default function App() {
           <Route path="/employees" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><EmployeesPage /></ProtectedRoute>} />
           <Route path="/payroll" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><PayrollPage /></ProtectedRoute>} />
           <Route path="/payroll/salary-master" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><SalaryMasterPage /></ProtectedRoute>} />
+          <Route path="/payroll/advances" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><AdvancesPage /></ProtectedRoute>} />
+          <Route path="/payroll/tax-computation" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><TaxComputationPage /></ProtectedRoute>} />
+          <Route path="/payroll/configurations" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><ConfigurationsPage /></ProtectedRoute>} />
           <Route path="/feedback" element={<FeedbackPage />} />
 
           {/* Knowledge Base */}

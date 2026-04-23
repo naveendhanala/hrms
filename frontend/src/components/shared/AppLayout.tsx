@@ -112,7 +112,10 @@ export default function AppLayout({ children }: Props) {
     ? 'LMS'
     : 'ATS';
 
-  const isSalaryMaster = location.pathname === '/payroll/salary-master';
+  const isSalaryMaster    = location.pathname === '/payroll/salary-master';
+  const isAdvances        = location.pathname === '/payroll/advances';
+  const isTaxComputation  = location.pathname === '/payroll/tax-computation';
+  const isConfigurations  = location.pathname === '/payroll/configurations';
 
   const initials = user.name
     .split(' ')
@@ -265,6 +268,7 @@ export default function AppLayout({ children }: Props) {
 
           {/* Salary Master sub-item — only visible when Payroll section is active */}
           {activeModule === 'PAYROLL' && MODULE_ACCESS['PAYROLL']?.includes(user.role) && (
+            <>
             <button
               onClick={() => navigate('/payroll/salary-master')}
               style={{
@@ -293,6 +297,96 @@ export default function AppLayout({ children }: Props) {
               </svg>
               Salary Master
             </button>
+            <button
+              onClick={() => navigate('/payroll/advances')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                width: '100%',
+                padding: '7px 12px 7px 36px',
+                borderRadius: 8,
+                border: 'none',
+                cursor: 'pointer',
+                marginBottom: 2,
+                background: isAdvances ? '#ede9fe' : 'transparent',
+                color: isAdvances ? '#6d28d9' : '#6b7280',
+                fontWeight: isAdvances ? 600 : 400,
+                fontSize: 13,
+                textAlign: 'left',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => { if (!isAdvances) (e.currentTarget as HTMLButtonElement).style.background = '#f9fafb'; }}
+              onMouseLeave={e => { if (!isAdvances) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="7" width="20" height="14" rx="2" />
+                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                <line x1="12" y1="12" x2="12" y2="16" />
+                <line x1="10" y1="14" x2="14" y2="14" />
+              </svg>
+              Advances
+            </button>
+            <button
+              onClick={() => navigate('/payroll/tax-computation')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                width: '100%',
+                padding: '7px 12px 7px 36px',
+                borderRadius: 8,
+                border: 'none',
+                cursor: 'pointer',
+                marginBottom: 2,
+                background: isTaxComputation ? '#ede9fe' : 'transparent',
+                color: isTaxComputation ? '#6d28d9' : '#6b7280',
+                fontWeight: isTaxComputation ? 600 : 400,
+                fontSize: 13,
+                textAlign: 'left',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => { if (!isTaxComputation) (e.currentTarget as HTMLButtonElement).style.background = '#f9fafb'; }}
+              onMouseLeave={e => { if (!isTaxComputation) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+              Tax Computation
+            </button>
+            <button
+              onClick={() => navigate('/payroll/configurations')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                width: '100%',
+                padding: '7px 12px 7px 36px',
+                borderRadius: 8,
+                border: 'none',
+                cursor: 'pointer',
+                marginBottom: 2,
+                background: isConfigurations ? '#ede9fe' : 'transparent',
+                color: isConfigurations ? '#6d28d9' : '#6b7280',
+                fontWeight: isConfigurations ? 600 : 400,
+                fontSize: 13,
+                textAlign: 'left',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => { if (!isConfigurations) (e.currentTarget as HTMLButtonElement).style.background = '#f9fafb'; }}
+              onMouseLeave={e => { if (!isConfigurations) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14" />
+              </svg>
+              Configurations
+            </button>
+            </>
           )}
         </nav>
 
@@ -353,7 +447,7 @@ export default function AppLayout({ children }: Props) {
       </aside>
 
       {/* Main area */}
-      <div style={{ flex: 1, marginLeft: 240, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <div style={{ flex: 1, marginLeft: 240, display: 'flex', flexDirection: 'column', minHeight: '100vh', minWidth: 0, overflow: 'hidden' }}>
         {/* Top header */}
         <header
           style={{
@@ -372,7 +466,7 @@ export default function AppLayout({ children }: Props) {
           <h1 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#111827' }}>
             {activeModule === 'DASHBOARD'   ? 'Dashboard'
             : activeModule === 'EMPLOYEES'  ? 'Employees'
-            : activeModule === 'PAYROLL'    ? (isSalaryMaster ? 'Salary Master' : 'Payroll')
+            : activeModule === 'PAYROLL'    ? (isSalaryMaster ? 'Salary Master' : isAdvances ? 'Advances' : isTaxComputation ? 'Tax Computation' : isConfigurations ? 'Configurations' : 'Payroll')
             : activeModule === 'ATS'        ? 'Applicant Tracking System'
             : activeModule === 'ATTENDANCE' ? 'Attendance Management'
             : activeModule === 'KB'         ? 'Knowledge Base'
@@ -431,7 +525,7 @@ export default function AppLayout({ children }: Props) {
         </header>
 
         {/* Page content */}
-        <main style={{ flex: 1, padding: 28 }}>{children}</main>
+        <main style={{ flex: 1, padding: 28, overflowX: 'hidden' }}>{children}</main>
       </div>
     </div>
   );

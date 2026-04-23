@@ -61,6 +61,27 @@ async function _runMigrations(): Promise<void> {
     pool.query(`ALTER TABLE salary_master ADD COLUMN IF NOT EXISTS special_allowance REAL NOT NULL DEFAULT 0`),
     pool.query(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS lop BOOLEAN NOT NULL DEFAULT false`),
     pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS designation TEXT NOT NULL DEFAULT ''`),
+    pool.query(`CREATE TABLE IF NOT EXISTS employee_tax_config (
+      employee_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      tax_regime  TEXT NOT NULL DEFAULT 'new',
+      updated_at  TEXT NOT NULL DEFAULT ''
+    )`),
+    pool.query(`CREATE TABLE IF NOT EXISTS payroll_config (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '')`),
+    pool.query(`CREATE TABLE IF NOT EXISTS prof_tax_by_state (state TEXT PRIMARY KEY, amount REAL NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT '')`),
+    pool.query(`ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS prof_tax REAL NOT NULL DEFAULT 0`),
+    pool.query(`ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS advance_deduction REAL NOT NULL DEFAULT 0`),
+    pool.query(`CREATE TABLE IF NOT EXISTS employee_advances (
+      id           SERIAL PRIMARY KEY,
+      employee_id  INTEGER NOT NULL REFERENCES users(id),
+      amount       REAL NOT NULL DEFAULT 0,
+      months       INTEGER NOT NULL DEFAULT 1,
+      monthly_amt  REAL NOT NULL DEFAULT 0,
+      recovered    REAL NOT NULL DEFAULT 0,
+      status       TEXT NOT NULL DEFAULT 'active',
+      created_by   INTEGER NOT NULL REFERENCES users(id),
+      created_at   TEXT NOT NULL DEFAULT '',
+      updated_at   TEXT NOT NULL DEFAULT ''
+    )`),
   ]);
 }
 
@@ -271,6 +292,7 @@ async function _init(): Promise<void> {
       absent_days      INTEGER NOT NULL DEFAULT 0,
       lop_days         REAL    NOT NULL DEFAULT 0,
       lop_deduction    REAL    NOT NULL DEFAULT 0,
+      prof_tax         REAL    NOT NULL DEFAULT 0,
       meal_allowance   REAL    NOT NULL DEFAULT 0,
       fuel_allowance   REAL    NOT NULL DEFAULT 0,
       driver_allowance REAL    NOT NULL DEFAULT 0,
@@ -318,6 +340,22 @@ async function _init(): Promise<void> {
       user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       balance    REAL    NOT NULL DEFAULT 0,
       updated_at TEXT    NOT NULL DEFAULT ''
+    )
+  `);
+
+  // ── Payroll config ───────────────────────────────────────────────────────────
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS payroll_config (
+      key        TEXT PRIMARY KEY,
+      value      TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS prof_tax_by_state (
+      state      TEXT PRIMARY KEY,
+      amount     REAL NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL DEFAULT ''
     )
   `);
 

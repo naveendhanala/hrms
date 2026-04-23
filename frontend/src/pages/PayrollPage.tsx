@@ -27,7 +27,13 @@ function StatusBadge({ status }: { status: 'draft' | 'processed' | 'paid' }) {
   );
 }
 
-const PROF_TAX = 200;
+const TH_STYLE: React.CSSProperties = {
+  padding: '11px 12px', textAlign: 'left',
+  fontSize: 11, fontWeight: 600, color: '#9ca3af',
+  textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap',
+};
+
+const TD_R: React.CSSProperties = { padding: '12px 12px', fontSize: 13, textAlign: 'right' };
 
 export default function PayrollPage() {
   const now = new Date();
@@ -42,20 +48,27 @@ export default function PayrollPage() {
   const [regenerating, setRegenerating] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
   const [msg, setMsg] = useState('');
+  const [error, setError] = useState('');
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
 
   const loadRun = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const data = await getPayrollRun(month, year);
       setRun(data);
+    } catch (e: any) {
+      setError(e.message || 'Failed to load payroll data');
+      setRun(null);
     } finally { setLoading(false); }
   }, [month, year]);
 
   const loadHistory = useCallback(async () => {
     setLoading(true);
+    setError('');
     try { setHistory(await getPayrollHistory()); }
+    catch (e: any) { setError(e.message || 'Failed to load history'); }
     finally { setLoading(false); }
   }, []);
 
@@ -98,7 +111,7 @@ export default function PayrollPage() {
     } finally { setStatusSaving(false); }
   };
 
-  const totalNet   = run?.records.reduce((s, r) => s + r.gross_salary - r.lop_deduction - PROF_TAX, 0) ?? 0;
+  const totalNet   = run?.records.reduce((s, r) => s + r.gross_salary - r.lop_deduction - (r.advance_deduction ?? 0) - r.prof_tax, 0) ?? 0;
   const totalGross = run?.records.reduce((s, r) => s + r.gross_salary, 0) ?? 0;
 
   return (
@@ -129,11 +142,15 @@ export default function PayrollPage() {
           {msg}
         </div>
       )}
+      {error && (
+        <div style={{ marginBottom: 14, padding: '10px 16px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 13 }}>
+          {error}
+        </div>
+      )}
 
       {/* ── PROCESS PAYROLL ── */}
       {tab === 'process' && (
         <div>
-          {/* Controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
             <select value={month} onChange={e => setMonth(Number(e.target.value))}
               style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13 }}>
@@ -188,7 +205,6 @@ export default function PayrollPage() {
             </div>
           ) : (
             <>
-              {/* Summary cards */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12, marginBottom: 16 }}>
                 {[
                   { label: 'Total Gross', value: fmt(totalGross), color: '#1e40af' },
@@ -201,83 +217,80 @@ export default function PayrollPage() {
                 ))}
               </div>
 
-              {/* Payroll table */}
               <div style={{ background: '#fff', borderRadius: 14, overflow: 'auto', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1200 }}>
                   <thead>
                     <tr style={{ background: '#f9fafb' }}>
                       {[
-                        'Emp ID', 'Employee Name', 'Role',
+                        'Emp ID', 'Employee Name', 'State', 'Designation',
                         'Gross Salary', 'Total Days', 'Present Days', 'Leave', 'Absent Days',
-                        'LOP Days', 'LOP Deduction', 'Earned Salary',
+                        'LOP Days', 'LOP Deduction', 'Earned Salary', 'Advance',
                         'Prof Tax', 'Net Paid',
-                      ].map(h => (
-                        <th key={h} style={{
-                          padding: '11px 12px', textAlign: 'left',
-                          fontSize: 11, fontWeight: 600, color: '#9ca3af',
-                          textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap',
-                        }}>{h}</th>
-                      ))}
+                      ].map(h => <th key={h} style={TH_STYLE}>{h}</th>)}
                     </tr>
                   </thead>
                   <tbody>
                     {run.records.map(r => {
                       const netGross = r.gross_salary - r.lop_deduction;
-                      const netPaid  = netGross - PROF_TAX;
-
+                      const netPaid  = netGross - (r.advance_deduction ?? 0) - r.prof_tax;
                       return (
                         <tr key={r.id} style={{ borderTop: '1px solid #f3f4f6' }}>
                           <td style={{ padding: '12px 12px', fontSize: 13, color: '#6b7280', fontFamily: 'monospace' }}>{r.emp_id ?? <span style={{ color: '#d1d5db' }}>—</span>}</td>
                           <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 600, color: '#111827', whiteSpace: 'nowrap' }}>{r.employee_name}</td>
-                          <td style={{ padding: '12px 12px', fontSize: 12, color: '#6b7280', textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{r.employee_role}</td>
-                          <td style={{ padding: '12px 12px', fontSize: 13, color: '#374151', textAlign: 'right' }}>{fmt(r.gross_salary)}</td>
-                          <td style={{ padding: '12px 12px', fontSize: 13, color: '#374151', textAlign: 'right' }}>{r.working_days}</td>
-                          <td style={{ padding: '12px 12px', fontSize: 13, color: '#16a34a', textAlign: 'right' }}>{r.present_days}</td>
-                          <td style={{ padding: '12px 12px', fontSize: 13, color: '#2563eb', textAlign: 'right' }}>{r.leave_days}</td>
-                          <td style={{ padding: '12px 12px', fontSize: 13, color: '#dc2626', textAlign: 'right' }}>{r.absent_days}</td>
-                          <td style={{ padding: '12px 12px', fontSize: 13, color: r.lop_days > 0 ? '#991b1b' : '#9ca3af', textAlign: 'right' }}>
+                          <td style={{ padding: '12px 12px', fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap' }}>
+                            {r.employee_state || <span style={{ color: '#d1d5db' }}>—</span>}
+                          </td>
+                          <td style={{ padding: '12px 12px', fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap' }}>{r.employee_designation || r.employee_role}</td>
+                          <td style={{ ...TD_R, color: '#374151' }}>{fmt(r.gross_salary)}</td>
+                          <td style={{ ...TD_R, color: '#374151' }}>{r.working_days}</td>
+                          <td style={{ ...TD_R, color: '#16a34a' }}>{r.present_days}</td>
+                          <td style={{ ...TD_R, color: '#2563eb' }}>{r.leave_days}</td>
+                          <td style={{ ...TD_R, color: '#dc2626' }}>{r.absent_days}</td>
+                          <td style={{ ...TD_R, color: r.lop_days > 0 ? '#991b1b' : '#9ca3af' }}>
                             {r.lop_days > 0 ? r.lop_days : '—'}
                           </td>
-                          <td style={{ padding: '12px 12px', fontSize: 13, color: r.lop_deduction > 0 ? '#991b1b' : '#9ca3af', textAlign: 'right' }}>
+                          <td style={{ ...TD_R, color: r.lop_deduction > 0 ? '#991b1b' : '#9ca3af' }}>
                             {r.lop_deduction > 0 ? fmt(r.lop_deduction) : '—'}
                           </td>
-                          <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 500, color: '#1e40af', textAlign: 'right' }}>{fmt(netGross)}</td>
-                          <td style={{ padding: '12px 12px', fontSize: 13, color: '#6b7280', textAlign: 'right' }}>{fmt(PROF_TAX)}</td>
-                          <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 700, color: netPaid >= 0 ? '#166534' : '#991b1b', textAlign: 'right' }}>{fmt(netPaid)}</td>
+                          <td style={{ ...TD_R, fontWeight: 500, color: '#1e40af' }}>{fmt(netGross)}</td>
+                          <td style={{ ...TD_R, color: r.advance_deduction > 0 ? '#7c3aed' : '#9ca3af' }}>
+                            {r.advance_deduction > 0 ? fmt(r.advance_deduction) : '—'}
+                          </td>
+                          <td style={{ ...TD_R, color: r.prof_tax > 0 ? '#6b7280' : '#9ca3af' }}>
+                            {r.prof_tax > 0 ? fmt(r.prof_tax) : '—'}
+                          </td>
+                          <td style={{ ...TD_R, fontWeight: 700, color: netPaid >= 0 ? '#166534' : '#991b1b' }}>{fmt(netPaid)}</td>
                         </tr>
                       );
                     })}
                   </tbody>
-                  {/* Totals row */}
                   <tfoot>
                     <tr style={{ borderTop: '2px solid #e5e7eb', background: '#f9fafb' }}>
-                      <td colSpan={3} style={{ padding: '12px 12px', fontSize: 13, fontWeight: 700, color: '#111827' }}>
+                      <td colSpan={4} style={{ padding: '12px 12px', fontSize: 13, fontWeight: 700, color: '#111827' }}>
                         Total ({run.records.length} employees)
                       </td>
-                      {/* Gross Salary total */}
-                      <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right', color: '#374151' }}>
+                      <td style={{ ...TD_R, fontWeight: 600, color: '#374151' }}>
                         {fmt(run.records.reduce((s, r) => s + r.gross_salary, 0))}
                       </td>
-                      {/* Total Days, Present, Leave, Absent — skip */}
                       <td /><td /><td /><td />
-                      {/* LOP Days total */}
-                      <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right', color: '#991b1b' }}>
+                      <td style={{ ...TD_R, fontWeight: 600, color: '#991b1b' }}>
                         {run.records.reduce((s, r) => s + r.lop_days, 0)}
                       </td>
-                      {/* LOP Deduction total */}
-                      <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right', color: '#991b1b' }}>
+                      <td style={{ ...TD_R, fontWeight: 600, color: '#991b1b' }}>
                         {fmt(run.records.reduce((s, r) => s + r.lop_deduction, 0))}
                       </td>
-                      {/* Earned Salary total */}
-                      <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 700, textAlign: 'right', color: '#1e40af' }}>
+                      <td style={{ ...TD_R, fontWeight: 700, color: '#1e40af' }}>
                         {fmt(run.records.reduce((s, r) => s + r.gross_salary - r.lop_deduction, 0))}
                       </td>
-                      {/* Prof Tax total */}
-                      <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right', color: '#6b7280' }}>
-                        {fmt(run.records.length * PROF_TAX)}
+                      <td style={{ ...TD_R, fontWeight: 600, color: '#7c3aed' }}>
+                        {run.records.some(r => r.advance_deduction > 0)
+                          ? fmt(run.records.reduce((s, r) => s + (r.advance_deduction ?? 0), 0))
+                          : <span style={{ color: '#9ca3af' }}>—</span>}
                       </td>
-                      {/* Net Paid total */}
-                      <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 700, textAlign: 'right', color: '#166534' }}>
+                      <td style={{ ...TD_R, fontWeight: 600, color: '#6b7280' }}>
+                        {fmt(run.records.reduce((s, r) => s + r.prof_tax, 0))}
+                      </td>
+                      <td style={{ ...TD_R, fontWeight: 700, color: '#166534' }}>
                         {fmt(totalNet)}
                       </td>
                     </tr>

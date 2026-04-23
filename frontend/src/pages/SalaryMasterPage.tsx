@@ -115,7 +115,7 @@ export default function SalaryMasterPage() {
             <colgroup>
               <col style={{ width: '7%' }} />   {/* Emp ID */}
               <col style={{ width: '13%' }} />  {/* Employee */}
-              <col style={{ width: '8%' }} />   {/* Role */}
+              <col style={{ width: '8%' }} />   {/* Designation */}
               <col style={{ width: '10%' }} />  {/* Gross */}
               <col style={{ width: '9%' }} />   {/* Basic */}
               <col style={{ width: '7%' }} />   {/* HRA */}
@@ -128,7 +128,7 @@ export default function SalaryMasterPage() {
             </colgroup>
             <thead>
               <tr style={{ background: '#f9fafb' }}>
-                {['Emp ID', 'Employee', 'Role', 'Gross', 'Basic', 'HRA', 'Meal Allow.', 'Fuel Allow.', 'Driver Allow.', 'Special Allow.', 'Updated', ''].map(h => (
+                {['Emp ID', 'Employee', 'Designation', 'Gross', 'Basic', 'HRA', 'Meal Allow.', 'Fuel Allow.', 'Driver Allow.', 'Special Allow.', 'Updated', ''].map(h => (
                   <th key={h} style={{ padding: '9px 8px', textAlign: h === '' ? 'center' : 'left', fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h}</th>
                 ))}
               </tr>
@@ -147,7 +147,7 @@ export default function SalaryMasterPage() {
                       {entry.emp_id ?? <span style={{ color: '#d1d5db' }}>—</span>}
                     </td>
                     <td style={{ padding: '10px 8px', fontSize: 12, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.employee_name}>{entry.employee_name}</td>
-                    <td style={{ padding: '10px 8px', fontSize: 11, color: '#6b7280', textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.employee_role}</td>
+                    <td style={{ padding: '10px 8px', fontSize: 11, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.employee_designation || entry.employee_role}</td>
                     <td style={{ padding: '10px 8px', fontSize: 12, fontWeight: 600, color: gross > 0 ? '#1e40af' : '#d1d5db', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {gross > 0 ? fmt(gross) : '—'}
                     </td>

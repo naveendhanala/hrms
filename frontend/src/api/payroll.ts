@@ -7,6 +7,8 @@ export interface PayrollRecord {
   emp_id: string | null;
   employee_name: string;
   employee_role: string;
+  employee_designation: string;
+  employee_state: string;
   manager_name: string | null;
   basic_salary: number;
   allowances: number;
@@ -18,6 +20,8 @@ export interface PayrollRecord {
   absent_days: number;
   lop_days: number;
   lop_deduction: number;
+  prof_tax: number;
+  advance_deduction: number;
 }
 
 export interface PayrollRun {
@@ -46,6 +50,7 @@ export interface SalaryMasterEntry {
   emp_id: string | null;
   employee_name: string;
   employee_role: string;
+  employee_designation: string;
   basic_salary: number;
   hra: number;
   meal_allowance: number;
@@ -86,6 +91,46 @@ export const updatePayrollStatus = (runId: number, status: 'processed' | 'paid')
   apiFetch<{ ok: boolean }>(`${BASE}/${runId}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ status }),
+  });
+
+export interface PayrollConfig {
+  prof_tax_amount: number;
+  tds_percentage: number;
+}
+
+export const getPayrollConfig = () =>
+  apiFetch<PayrollConfig>(`${BASE}/config`);
+
+export const updatePayrollConfig = (data: Partial<PayrollConfig>) =>
+  apiFetch<{ ok: boolean }>(`${BASE}/config`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+
+export interface ProfTaxByState {
+  state: string;
+  amount: number;
+}
+
+export const getProfTaxByState = () =>
+  apiFetch<ProfTaxByState[]>(`${BASE}/prof-tax-states`);
+
+export const updateProfTaxForState = (state: string, amount: number) =>
+  apiFetch<{ ok: boolean }>(`${BASE}/prof-tax-states`, {
+    method: 'PUT',
+    body: JSON.stringify({ state, amount }),
+  });
+
+export interface TdsSlab { id: string; range: string; rate: string }
+export interface TdsSlabs { old: TdsSlab[]; new: TdsSlab[] }
+
+export const getTdsSlabs = () =>
+  apiFetch<TdsSlabs>(`${BASE}/tds-slabs`);
+
+export const updateTdsSlabs = (regime: 'old' | 'new', slabs: TdsSlab[]) =>
+  apiFetch<{ ok: boolean }>(`${BASE}/tds-slabs`, {
+    method: 'PUT',
+    body: JSON.stringify({ regime, slabs }),
   });
 
 export const getSalaryMaster = () =>
