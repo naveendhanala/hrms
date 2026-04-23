@@ -12,7 +12,6 @@ export interface PayrollRecord {
   allowances: number;
   deductions: number;
   gross_salary: number;
-  net_salary: number;
   working_days: number;
   present_days: number;
   leave_days: number;

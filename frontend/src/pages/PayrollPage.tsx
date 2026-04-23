@@ -209,7 +209,7 @@ export default function PayrollPage() {
                       {[
                         'Emp ID', 'Employee Name', 'Role',
                         'Gross Salary', 'Total Days', 'Present Days', 'Leave', 'Absent Days',
-                        'LOP Days', 'LOP Deduction', 'Net Gross Salary',
+                        'LOP Days', 'LOP Deduction', 'Earned Salary',
                         'Prof Tax', 'Net Paid',
                       ].map(h => (
                         <th key={h} style={{
@@ -268,7 +268,7 @@ export default function PayrollPage() {
                       <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 600, textAlign: 'right', color: '#991b1b' }}>
                         {fmt(run.records.reduce((s, r) => s + r.lop_deduction, 0))}
                       </td>
-                      {/* Net Gross Salary total */}
+                      {/* Earned Salary total */}
                       <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 700, textAlign: 'right', color: '#1e40af' }}>
                         {fmt(run.records.reduce((s, r) => s + r.gross_salary - r.lop_deduction, 0))}
                       </td>

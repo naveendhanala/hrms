@@ -76,8 +76,7 @@ router.get('/', authenticateToken, requireRole('admin', 'hr'), async (req: AuthR
   const records = await db.query(`
     SELECT r.*, u.emp_id, u.name as employee_name, u.role as employee_role,
            m.name as manager_name,
-           (r.basic_salary + r.allowances) as gross_salary,
-           (r.basic_salary + r.allowances - r.lop_deduction - 200 - r.deductions) as net_salary
+           (r.basic_salary + r.allowances) as gross_salary
     FROM payroll_records r
     JOIN users u ON r.employee_id = u.id
     LEFT JOIN users m ON u.reporting_manager_id = m.id
