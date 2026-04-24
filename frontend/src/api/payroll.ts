@@ -22,6 +22,7 @@ export interface PayrollRecord {
   lop_deduction: number;
   prof_tax: number;
   advance_deduction: number;
+  tds_deduction: number;
 }
 
 export interface PayrollRun {

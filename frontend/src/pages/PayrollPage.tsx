@@ -111,7 +111,7 @@ export default function PayrollPage() {
     } finally { setStatusSaving(false); }
   };
 
-  const totalNet   = run?.records.reduce((s, r) => s + r.gross_salary - r.lop_deduction - (r.advance_deduction ?? 0) - r.prof_tax, 0) ?? 0;
+  const totalNet   = run?.records.reduce((s, r) => s + r.gross_salary - r.lop_deduction - (r.advance_deduction ?? 0) - r.prof_tax - (r.tds_deduction ?? 0), 0) ?? 0;
   const totalGross = run?.records.reduce((s, r) => s + r.gross_salary, 0) ?? 0;
 
   return (
@@ -225,14 +225,15 @@ export default function PayrollPage() {
                         'Emp ID', 'Employee Name', 'State', 'Designation',
                         'Gross Salary', 'Total Days', 'Present Days', 'Leave', 'Absent Days',
                         'LOP Days', 'LOP Deduction', 'Earned Salary', 'Advance',
-                        'Prof Tax', 'Net Paid',
+                        'Prof Tax', 'TDS', 'Net Paid',
                       ].map(h => <th key={h} style={TH_STYLE}>{h}</th>)}
                     </tr>
                   </thead>
                   <tbody>
                     {run.records.map(r => {
                       const netGross = r.gross_salary - r.lop_deduction;
-                      const netPaid  = netGross - (r.advance_deduction ?? 0) - r.prof_tax;
+                      const tds      = r.tds_deduction ?? 0;
+                      const netPaid  = netGross - (r.advance_deduction ?? 0) - r.prof_tax - tds;
                       return (
                         <tr key={r.id} style={{ borderTop: '1px solid #f3f4f6' }}>
                           <td style={{ padding: '12px 12px', fontSize: 13, color: '#6b7280', fontFamily: 'monospace' }}>{r.emp_id ?? <span style={{ color: '#d1d5db' }}>—</span>}</td>
@@ -258,6 +259,9 @@ export default function PayrollPage() {
                           </td>
                           <td style={{ ...TD_R, color: r.prof_tax > 0 ? '#6b7280' : '#9ca3af' }}>
                             {r.prof_tax > 0 ? fmt(r.prof_tax) : '—'}
+                          </td>
+                          <td style={{ ...TD_R, color: tds > 0 ? '#dc2626' : '#9ca3af' }}>
+                            {tds > 0 ? fmt(tds) : '—'}
                           </td>
                           <td style={{ ...TD_R, fontWeight: 700, color: netPaid >= 0 ? '#166534' : '#991b1b' }}>{fmt(netPaid)}</td>
                         </tr>
@@ -289,6 +293,11 @@ export default function PayrollPage() {
                       </td>
                       <td style={{ ...TD_R, fontWeight: 600, color: '#6b7280' }}>
                         {fmt(run.records.reduce((s, r) => s + r.prof_tax, 0))}
+                      </td>
+                      <td style={{ ...TD_R, fontWeight: 600, color: '#dc2626' }}>
+                        {run.records.some(r => (r.tds_deduction ?? 0) > 0)
+                          ? fmt(run.records.reduce((s, r) => s + (r.tds_deduction ?? 0), 0))
+                          : <span style={{ color: '#9ca3af' }}>—</span>}
                       </td>
                       <td style={{ ...TD_R, fontWeight: 700, color: '#166534' }}>
                         {fmt(totalNet)}

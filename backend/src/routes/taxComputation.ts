@@ -55,7 +55,45 @@ function getSurcharge(taxableIncome: number, taxAfterRebate: number, regime: 'ol
   return { surcharge: Math.round(taxAfterRebate * rate), surchargeLabel: label };
 }
 
-export function computeAnnualTax(annualGross: number, regime: 'old' | 'new') {
+// Returns { fyStartYear, fyEndYear } for the Indian FY (April–March) that contains month/year
+export function getFY(month: number, year: number) {
+  return month >= 4
+    ? { fyStartYear: year, fyEndYear: year + 1 }
+    : { fyStartYear: year - 1, fyEndYear: year };
+}
+
+// Count months from (fromMonth, fromYear) to March of fyEndYear, inclusive
+// e.g. Apr/2026 → Mar/2027 = 12; Sep/2026 → Mar/2027 = 7
+export function monthsToEndOfFY(fromMonth: number, fromYear: number, fyEndYear: number): number {
+  return (fyEndYear - fromYear) * 12 + (4 - fromMonth);
+}
+
+export function computeAnnualTax(
+  monthlyGross: number,
+  regime: 'old' | 'new',
+  payrollMonth: number,
+  payrollYear: number,
+  joiningDate: string | null,
+  tdsAlreadyDeducted: number,
+  processedMonthsInFY: number,
+) {
+  const { fyStartYear, fyEndYear } = getFY(payrollMonth, payrollYear);
+
+  // Determine employee's first month in this FY
+  let firstFYMonth = 4;
+  let firstFYYear = fyStartYear;
+  if (joiningDate) {
+    const doj = new Date(joiningDate);
+    const fyStart = new Date(fyStartYear, 3, 1); // April 1
+    if (doj > fyStart) {
+      firstFYMonth = doj.getMonth() + 1;
+      firstFYYear = doj.getFullYear();
+    }
+  }
+
+  const monthsInFY = Math.max(1, monthsToEndOfFY(firstFYMonth, firstFYYear, fyEndYear));
+  const annualGross = monthlyGross * monthsInFY;
+
   const slabs = regime === 'new' ? NEW_REGIME : OLD_REGIME;
   const standardDeduction = regime === 'new' ? 75000 : 50000;
   const taxableIncome = Math.max(0, annualGross - standardDeduction);
@@ -73,10 +111,13 @@ export function computeAnnualTax(annualGross: number, regime: 'old' | 'new') {
 
   const taxAfterRebate = taxBeforeRebate - rebate;
   const { surcharge, surchargeLabel } = getSurcharge(taxableIncome, taxAfterRebate, regime);
-  // Cess is on (tax after rebate + surcharge)
   const cess = Math.round((taxAfterRebate + surcharge) * 0.04);
   const totalAnnualTax = taxAfterRebate + surcharge + cess;
-  const monthlyTds = Math.round(totalAnnualTax / 12);
+
+  // Remaining months = employee's total months in FY minus already-processed months
+  const remainingMonths = Math.max(1, monthsInFY - processedMonthsInFY);
+  const remainingTax = Math.max(0, totalAnnualTax - tdsAlreadyDeducted);
+  const monthlyTds = Math.round(remainingTax / remainingMonths);
 
   return {
     annualGross,
@@ -92,12 +133,18 @@ export function computeAnnualTax(annualGross: number, regime: 'old' | 'new') {
     cess,
     totalAnnualTax,
     monthlyTds,
+    monthsInFY,
+    joiningDate,
+    tdsAlreadyDeducted,
+    processedMonthsInFY,
+    remainingMonths,
+    fyLabel: `FY ${fyStartYear}-${String(fyEndYear).slice(2)}`,
   };
 }
 
 router.get('/', authenticateToken, requireRole('admin', 'hr'), async (_req: AuthRequest, res: Response) => {
   const employees = await db.query<any>(`
-    SELECT u.id, u.emp_id, u.name, u.designation,
+    SELECT u.id, u.emp_id, u.name, u.designation, u.date_of_joining,
            COALESCE(s.basic_salary,      0) AS basic_salary,
            COALESCE(s.hra,               0) AS hra,
            COALESCE(s.meal_allowance,    0) AS meal_allowance,
@@ -112,9 +159,26 @@ router.get('/', authenticateToken, requireRole('admin', 'hr'), async (_req: Auth
     ORDER BY u.name ASC
   `);
 
-  const result = employees.map((emp: any) => {
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+  const { fyStartYear, fyEndYear } = getFY(currentMonth, currentYear);
+
+  const result = await Promise.all(employees.map(async (emp: any) => {
+    const tdsRow = await db.queryOne<{ processed_count: number; tds_total: number }>(`
+      SELECT COUNT(*) AS processed_count, COALESCE(SUM(pr.tds_deduction), 0) AS tds_total
+      FROM payroll_records pr
+      JOIN payroll_runs run ON pr.run_id = run.id
+      WHERE pr.employee_id = ?
+        AND run.status IN ('processed', 'paid')
+        AND ((run.year = ? AND run.month >= 4) OR (run.year = ? AND run.month <= 3))
+    `, [emp.id, fyStartYear, fyEndYear]);
+
+    const processedMonthsInFY = Number(tdsRow?.processed_count ?? 0);
+    const tdsAlreadyDeducted = Number(tdsRow?.tds_total ?? 0);
     const monthlyGross = emp.basic_salary + emp.hra + emp.meal_allowance + emp.fuel_allowance + emp.driver_allowance + emp.special_allowance;
     const regime = (emp.tax_regime || 'new') as 'old' | 'new';
+
     return {
       employee_id: emp.id,
       emp_id: emp.emp_id,
@@ -130,9 +194,9 @@ router.get('/', authenticateToken, requireRole('admin', 'hr'), async (_req: Auth
         driver_allowance:  emp.driver_allowance,
         special_allowance: emp.special_allowance,
       },
-      ...computeAnnualTax(monthlyGross * 12, regime),
+      ...computeAnnualTax(monthlyGross, regime, currentMonth, currentYear, emp.date_of_joining, tdsAlreadyDeducted, processedMonthsInFY),
     };
-  });
+  }));
 
   res.json(result);
 });

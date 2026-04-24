@@ -70,6 +70,8 @@ async function _runMigrations(): Promise<void> {
     pool.query(`CREATE TABLE IF NOT EXISTS prof_tax_by_state (state TEXT PRIMARY KEY, amount REAL NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT '')`),
     pool.query(`ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS prof_tax REAL NOT NULL DEFAULT 0`),
     pool.query(`ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS advance_deduction REAL NOT NULL DEFAULT 0`),
+    pool.query(`ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS tds_deduction REAL NOT NULL DEFAULT 0`),
+    pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_joining TEXT`),
     pool.query(`CREATE TABLE IF NOT EXISTS employee_advances (
       id           SERIAL PRIMARY KEY,
       employee_id  INTEGER NOT NULL REFERENCES users(id),

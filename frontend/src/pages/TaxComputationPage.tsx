@@ -9,6 +9,7 @@ const fmt = (n: number) =>
 function TaxSheet({ emp, onClose }: { emp: TaxEmployee; onClose: () => void }) {
   const sc = emp.salary_components;
   const isNew = emp.tax_regime === 'new';
+  const isMidYear = emp.monthsInFY < 12;
 
   return (
     <div
@@ -21,7 +22,7 @@ function TaxSheet({ emp, onClose }: { emp: TaxEmployee; onClose: () => void }) {
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          background: '#fff', borderRadius: 12, width: 660, maxHeight: '90vh',
+          background: '#fff', borderRadius: 12, width: 680, maxHeight: '90vh',
           overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
         }}
       >
@@ -30,15 +31,25 @@ function TaxSheet({ emp, onClose }: { emp: TaxEmployee; onClose: () => void }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 4 }}>
-                Tax Computation Sheet · FY 2025-26
+                Tax Computation Sheet · {emp.fyLabel}
               </div>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827' }}>{emp.name}</h3>
               <div style={{ marginTop: 4, display: 'flex', gap: 8, alignItems: 'center' }}>
                 {emp.emp_id && <span style={{ fontSize: 12, color: '#6b7280' }}>{emp.emp_id}</span>}
                 {emp.designation && <span style={{ fontSize: 12, color: '#6b7280' }}>· {emp.designation}</span>}
+                {emp.joiningDate && (
+                  <span style={{ fontSize: 12, color: '#6b7280' }}>
+                    · Joined {new Date(emp.joiningDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                )}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              {isMidYear && (
+                <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: '#fef9c3', color: '#854d0e' }}>
+                  Mid-year joiner · {emp.monthsInFY}m
+                </span>
+              )}
               <span style={{
                 padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700,
                 background: isNew ? '#ede9fe' : '#fef3c7',
@@ -97,7 +108,12 @@ function TaxSheet({ emp, onClose }: { emp: TaxEmployee; onClose: () => void }) {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <tbody>
                   <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                    <td style={{ padding: '8px 14px', color: '#374151' }}>Annual Gross Salary (Monthly × 12)</td>
+                    <td style={{ padding: '8px 14px', color: '#374151' }}>
+                      Potential Annual Gross
+                      <span style={{ marginLeft: 6, fontSize: 11, color: '#9ca3af' }}>
+                        (Monthly × {emp.monthsInFY} month{emp.monthsInFY !== 1 ? 's' : ''} in {emp.fyLabel})
+                      </span>
+                    </td>
                     <td style={{ padding: '8px 14px', textAlign: 'right', color: '#374151' }}>{fmt(emp.annualGross)}</td>
                   </tr>
                   <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
@@ -179,6 +195,22 @@ function TaxSheet({ emp, onClose }: { emp: TaxEmployee; onClose: () => void }) {
                     <td style={{ padding: '10px 14px', fontWeight: 700, color: emp.totalAnnualTax > 0 ? '#991b1b' : '#14532d' }}>Total Annual Tax</td>
                     <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, color: emp.totalAnnualTax > 0 ? '#991b1b' : '#14532d' }}>{fmt(emp.totalAnnualTax)}</td>
                   </tr>
+                  {emp.tdsAlreadyDeducted > 0 && (
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <td style={{ padding: '8px 14px', color: '#374151' }}>
+                        (–) TDS Already Deducted
+                        <span style={{ marginLeft: 6, fontSize: 11, color: '#9ca3af' }}>({emp.processedMonthsInFY} month{emp.processedMonthsInFY !== 1 ? 's' : ''} processed)</span>
+                      </td>
+                      <td style={{ padding: '8px 14px', textAlign: 'right', color: '#dc2626' }}>({fmt(emp.tdsAlreadyDeducted)})</td>
+                    </tr>
+                  )}
+                  <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#fffbeb' }}>
+                    <td style={{ padding: '8px 14px', color: '#374151' }}>
+                      Remaining Tax
+                      <span style={{ marginLeft: 6, fontSize: 11, color: '#9ca3af' }}>÷ {emp.remainingMonths} remaining month{emp.remainingMonths !== 1 ? 's' : ''}</span>
+                    </td>
+                    <td style={{ padding: '8px 14px', textAlign: 'right', color: '#374151' }}>{fmt(Math.max(0, emp.totalAnnualTax - emp.tdsAlreadyDeducted))}</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -192,7 +224,9 @@ function TaxSheet({ emp, onClose }: { emp: TaxEmployee; onClose: () => void }) {
           }}>
             <div>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Monthly TDS Deduction</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>Total Annual Tax ÷ 12</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                Remaining Tax ÷ {emp.remainingMonths} month{emp.remainingMonths !== 1 ? 's' : ''}
+              </div>
             </div>
             <div style={{ fontSize: 26, fontWeight: 800, color: '#fff' }}>{fmt(emp.monthlyTds)}</div>
           </div>
@@ -232,6 +266,7 @@ export default function TaxComputationPage() {
     setSavingId(null);
   };
 
+  const fyLabel = employees[0]?.fyLabel ?? '';
   const totalMonthlyTds = employees.reduce((s, e) => s + e.monthlyTds, 0);
 
   return (
@@ -242,7 +277,7 @@ export default function TaxComputationPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <div>
             <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>
-              FY 2025-26 &nbsp;·&nbsp; Income Tax Deduction at Source (TDS) &nbsp;·&nbsp; Default: New Regime
+              {fyLabel || 'FY 2025-26'} &nbsp;·&nbsp; Income Tax Deduction at Source (TDS) &nbsp;·&nbsp; Default: New Regime
             </p>
           </div>
           {employees.length > 0 && (
@@ -263,8 +298,8 @@ export default function TaxComputationPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                  {['Emp ID', 'Employee', 'Tax Regime', 'Monthly Gross', 'Annual Gross', 'Taxable Income', 'Annual Tax', 'Monthly TDS', ''].map((h, i) => (
-                    <th key={i} style={{ padding: '11px 14px', textAlign: i >= 3 && i <= 7 ? 'right' : i === 8 ? 'center' : 'left', fontWeight: 600, color: '#374151', fontSize: 12, whiteSpace: 'nowrap' }}>
+                  {['Emp ID', 'Employee', 'Tax Regime', 'Monthly Gross', 'Potential Annual Gross', 'Taxable Income', 'Annual Tax', 'TDS Deducted', 'Remaining', 'Monthly TDS', ''].map((h, i) => (
+                    <th key={i} style={{ padding: '11px 14px', textAlign: i >= 3 && i <= 9 ? 'right' : i === 10 ? 'center' : 'left', fontWeight: 600, color: '#374151', fontSize: 12, whiteSpace: 'nowrap' }}>
                       {h}
                     </th>
                   ))}
@@ -282,6 +317,11 @@ export default function TaxComputationPage() {
                     <td style={{ padding: '11px 14px' }}>
                       <div style={{ fontWeight: 500, color: '#111827' }}>{emp.name}</div>
                       {emp.designation && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>{emp.designation}</div>}
+                      {emp.monthsInFY < 12 && (
+                        <div style={{ fontSize: 10, color: '#92400e', marginTop: 1, fontWeight: 600 }}>
+                          {emp.monthsInFY}m in {emp.fyLabel}
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: '11px 14px' }}>
                       <select
@@ -305,6 +345,12 @@ export default function TaxComputationPage() {
                     <td style={{ padding: '11px 14px', textAlign: 'right', color: '#374151' }}>{fmt(emp.taxableIncome)}</td>
                     <td style={{ padding: '11px 14px', textAlign: 'right', fontWeight: 600, color: emp.totalAnnualTax > 0 ? '#dc2626' : '#6b7280' }}>
                       {fmt(emp.totalAnnualTax)}
+                    </td>
+                    <td style={{ padding: '11px 14px', textAlign: 'right', color: emp.tdsAlreadyDeducted > 0 ? '#6b7280' : '#9ca3af' }}>
+                      {emp.tdsAlreadyDeducted > 0 ? fmt(emp.tdsAlreadyDeducted) : '—'}
+                    </td>
+                    <td style={{ padding: '11px 14px', textAlign: 'right', color: '#374151', fontSize: 12 }}>
+                      {emp.remainingMonths}m left
                     </td>
                     <td style={{ padding: '11px 14px', textAlign: 'right', fontWeight: 700, color: emp.monthlyTds > 0 ? '#dc2626' : '#6b7280' }}>
                       {fmt(emp.monthlyTds)}

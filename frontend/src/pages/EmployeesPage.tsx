@@ -88,6 +88,7 @@ export default function EmployeesPage() {
         email:                editForm.email ?? editingEmployee.email,
         emp_id:               editForm.emp_id ?? undefined,
         dob:                  editForm.dob ?? undefined,
+        date_of_joining:      editForm.date_of_joining ?? undefined,
         project:              editForm.project ?? '',
         location:             editForm.location ?? '',
         state:                editForm.state ?? '',
@@ -410,6 +411,13 @@ export default function EmployeesPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
                 <input type="date" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   value={editForm.dob ?? ''} onChange={e => setEditForm(f => ({ ...f, dob: e.target.value || undefined }))} />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date of Joining</label>
+                <input type="date" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  value={editForm.date_of_joining ?? ''} onChange={e => setEditForm(f => ({ ...f, date_of_joining: e.target.value || undefined }))} />
               </div>
             </div>
             {/* Row 3 */}

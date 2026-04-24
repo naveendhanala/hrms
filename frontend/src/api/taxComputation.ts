@@ -37,6 +37,12 @@ export interface TaxEmployee {
   cess: number;
   totalAnnualTax: number;
   monthlyTds: number;
+  monthsInFY: number;
+  joiningDate: string | null;
+  tdsAlreadyDeducted: number;
+  processedMonthsInFY: number;
+  remainingMonths: number;
+  fyLabel: string;
 }
 
 const BASE = '/api/tax-computation';

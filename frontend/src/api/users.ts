@@ -8,6 +8,7 @@ export interface Employee {
   name: string;
   role: string;
   dob: string | null;
+  date_of_joining: string | null;
   project: string;
   location: string;
   state: string;
@@ -30,6 +31,7 @@ export interface EmployeeUpdate {
   email: string;
   emp_id?: string;
   dob?: string;
+  date_of_joining?: string;
   project?: string;
   location?: string;
   state?: string;

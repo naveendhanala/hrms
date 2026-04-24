@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import db from '../db';
 import { authenticateToken, requireRole, AuthRequest } from '../middleware/auth';
+import { computeAnnualTax, getFY } from './taxComputation';
 
 const router = Router();
 
@@ -77,7 +78,8 @@ router.get('/', authenticateToken, requireRole('admin', 'hr'), async (req: AuthR
     SELECT r.*, u.emp_id, u.name as employee_name, u.role as employee_role,
            u.designation as employee_designation, u.state as employee_state,
            m.name as manager_name,
-           (r.basic_salary + r.allowances) as gross_salary
+           (r.basic_salary + r.allowances) as gross_salary,
+           COALESCE(r.tds_deduction, 0) as tds_deduction
     FROM payroll_records r
     JOIN users u ON r.employee_id = u.id
     LEFT JOIN users m ON u.reporting_manager_id = m.id
@@ -92,7 +94,7 @@ router.get('/history', authenticateToken, requireRole('admin', 'hr'), async (_re
   const runs = await db.query(`
     SELECT pr.*, u.name as created_by_name,
            COUNT(r.id) as employee_count,
-           SUM(r.basic_salary + r.allowances - r.lop_deduction - r.prof_tax - r.deductions) as total_net
+           SUM(r.basic_salary + r.allowances - r.lop_deduction - r.prof_tax - r.deductions - r.tds_deduction) as total_net
     FROM payroll_runs pr
     JOIN users u ON pr.created_by = u.id
     LEFT JOIN payroll_records r ON r.run_id = pr.id
@@ -107,28 +109,32 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
   const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
 
   const employees = await db.query<any>(`
-    SELECT u.id, u.state,
+    SELECT u.id, u.state, u.date_of_joining,
            COALESCE(s.basic_salary,      0) AS basic_salary,
            COALESCE(s.hra,               0) AS hra,
            COALESCE(s.meal_allowance,    0) AS meal_allowance,
            COALESCE(s.fuel_allowance,    0) AS fuel_allowance,
            COALESCE(s.driver_allowance,  0) AS driver_allowance,
            COALESCE(s.special_allowance, 0) AS special_allowance,
-           COALESCE(s.deductions,        0) AS deductions
+           COALESCE(s.deductions,        0) AS deductions,
+           COALESCE(t.tax_regime, 'new')   AS tax_regime
     FROM users u
     LEFT JOIN salary_master s ON s.employee_id = u.id
+    LEFT JOIN employee_tax_config t ON t.employee_id = u.id
     WHERE u.role != 'admin' AND u.status = 'active'
   `);
 
   const stateTaxRows = await db.query<{ state: string; amount: number }>('SELECT state, amount FROM prof_tax_by_state');
   const stateTaxMap = new Map(stateTaxRows.map(r => [r.state.trim().toLowerCase(), r.amount]));
 
+  const { fyStartYear, fyEndYear } = getFY(month, year);
+
   const insertSql = `
     INSERT INTO payroll_records
       (run_id, employee_id, basic_salary, allowances, meal_allowance, fuel_allowance, driver_allowance, deductions,
        working_days, present_days, leave_days, absent_days, lop_days, lop_deduction, prof_tax, advance_deduction,
-       created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       tds_deduction, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   for (const emp of employees) {
@@ -165,11 +171,29 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
     );
     const advanceDeduction = advRow?.total ?? 0;
 
+    // TDS: look up already-processed months for this employee in this FY (current run is draft, excluded)
+    const tdsRow = await db.queryOne<{ processed_count: number; tds_total: number }>(`
+      SELECT COUNT(*) AS processed_count, COALESCE(SUM(pr.tds_deduction), 0) AS tds_total
+      FROM payroll_records pr
+      JOIN payroll_runs run ON pr.run_id = run.id
+      WHERE pr.employee_id = ?
+        AND run.status IN ('processed', 'paid')
+        AND ((run.year = ? AND run.month >= 4) OR (run.year = ? AND run.month <= 3))
+    `, [emp.id, fyStartYear, fyEndYear]);
+    const processedMonthsInFY = Number(tdsRow?.processed_count ?? 0);
+    const tdsAlreadyDeducted  = Number(tdsRow?.tds_total ?? 0);
+
+    const regime = (emp.tax_regime || 'new') as 'old' | 'new';
+    const { monthlyTds } = computeAnnualTax(
+      grossSalary, regime, month, year, emp.date_of_joining, tdsAlreadyDeducted, processedMonthsInFY,
+    );
+
     await db.run(insertSql, [
       runId, emp.id, emp.basic_salary, totalAllowances,
       emp.meal_allowance, emp.fuel_allowance, emp.driver_allowance,
       emp.deductions,
       totalDays, presentDays, leaveDays, absentDays, lopDays, lopDeduction, profTax, advanceDeduction,
+      monthlyTds,
       now, now,
     ]);
   }
