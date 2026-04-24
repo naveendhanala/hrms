@@ -1,36 +1,40 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/shared/ProtectedRoute';
 
-import LoginPage from './pages/LoginPage';
-import Dashboard from './pages/Dashboard';
-import EmployeesPage from './pages/EmployeesPage';
-import PayrollPage from './pages/PayrollPage';
-import SalaryMasterPage from './pages/SalaryMasterPage';
-import ConfigurationsPage from './pages/ConfigurationsPage';
-import AdvancesPage from './pages/AdvancesPage';
-import TaxComputationPage from './pages/TaxComputationPage';
-import AttendancePage from './pages/attendance/AttendancePage';
-import FeedbackPage from './pages/ats/FeedbackPage';
+const LoginPage          = lazy(() => import('./pages/LoginPage'));
+const Dashboard          = lazy(() => import('./pages/Dashboard'));
+const EmployeesPage      = lazy(() => import('./pages/EmployeesPage'));
+const PayrollPage        = lazy(() => import('./pages/PayrollPage'));
+const SalaryMasterPage   = lazy(() => import('./pages/SalaryMasterPage'));
+const ConfigurationsPage = lazy(() => import('./pages/ConfigurationsPage'));
+const AdvancesPage       = lazy(() => import('./pages/AdvancesPage'));
+const TaxComputationPage = lazy(() => import('./pages/TaxComputationPage'));
+const AttendancePage     = lazy(() => import('./pages/attendance/AttendancePage'));
+const FeedbackPage       = lazy(() => import('./pages/ats/FeedbackPage'));
+const AdminPage          = lazy(() => import('./pages/ats/AdminPage'));
+const HRPage             = lazy(() => import('./pages/ats/HRPage'));
+const DirectorPage       = lazy(() => import('./pages/ats/DirectorPage'));
+const ProjectLeadPage    = lazy(() => import('./pages/ats/ProjectLeadPage'));
+const BusinessHeadPage   = lazy(() => import('./pages/ats/BusinessHeadPage'));
+const KnowledgeBasePage  = lazy(() => import('./pages/kb/KnowledgeBasePage'));
+const EmployeeDashboard  = lazy(() => import('./pages/lms/EmployeeDashboard'));
+const WatchPage          = lazy(() => import('./pages/lms/WatchPage'));
+const QuizPage           = lazy(() => import('./pages/lms/QuizPage'));
+const LmsAdminDashboard  = lazy(() => import('./pages/lms/admin/AdminDashboard'));
+const ManageCoursePage   = lazy(() => import('./pages/lms/admin/ManageCoursePage'));
+const LmsReportPage      = lazy(() => import('./pages/lms/admin/ReportPage'));
 
-import AdminPage from './pages/ats/AdminPage';
-import HRPage from './pages/ats/HRPage';
-import DirectorPage from './pages/ats/DirectorPage';
-import ProjectLeadPage from './pages/ats/ProjectLeadPage';
-import BusinessHeadPage from './pages/ats/BusinessHeadPage';
-
-import KnowledgeBasePage from './pages/kb/KnowledgeBasePage';
-import EmployeeDashboard from './pages/lms/EmployeeDashboard';
-import WatchPage from './pages/lms/WatchPage';
-import QuizPage from './pages/lms/QuizPage';
-import LmsAdminDashboard from './pages/lms/admin/AdminDashboard';
-import ManageCoursePage from './pages/lms/admin/ManageCoursePage';
-import LmsReportPage from './pages/lms/admin/ReportPage';
+function PageLoader() {
+  return <div style={{ padding: 40, color: '#9ca3af', fontSize: 14 }}>Loading…</div>;
+}
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee']}><Dashboard /></ProtectedRoute>} />
@@ -64,6 +68,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
   );

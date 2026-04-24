@@ -22,8 +22,8 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   }
 
   const result = await db.run(
-    'INSERT INTO announcements (user_id, content) VALUES (?, ?) RETURNING id',
-    [req.user!.id, String(content).trim()],
+    'INSERT INTO announcements (user_id, content, created_at) VALUES (?, ?, ?) RETURNING id',
+    [req.user!.id, String(content).trim(), new Date().toISOString()],
   );
 
   const row = await db.queryOne(`

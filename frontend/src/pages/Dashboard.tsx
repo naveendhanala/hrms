@@ -44,12 +44,19 @@ function BirthdayLabel({ days }: { days: number }) {
   return <span style={{ fontSize: 11, color: '#9ca3af' }}>in {days} days</span>;
 }
 
-function timeAgo(iso: string): string {
-  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
+function formatIST(iso: string): string {
+  if (!iso) return '—';
+  const d = new Date(iso.replace(' ', 'T'));
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
 }
 
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
@@ -71,17 +78,21 @@ export default function Dashboard() {
 
   const [birthdays, setBirthdays] = useState<BirthdayEmployee[]>([]);
   const [bdLoading, setBdLoading] = useState(true);
+  const [annError, setAnnError] = useState(false);
+  const [bdError, setBdError] = useState(false);
 
   useEffect(() => {
-    apiFetch<Announcement[]>('/api/announcements')
-      .then(setAnnouncements)
-      .catch(() => {})
-      .finally(() => setAnnLoading(false));
+    Promise.all([
+      apiFetch<Announcement[]>('/api/announcements')
+        .then(setAnnouncements)
+        .catch(() => setAnnError(true))
+        .finally(() => setAnnLoading(false)),
 
-    apiFetch<{ id: number; name: string; role: string; designation: string; location: string; dob: string }[]>('/api/users/birthdays')
-      .then(data => setBirthdays(getUpcomingBirthdays(data)))
-      .catch(() => {})
-      .finally(() => setBdLoading(false));
+      apiFetch<{ id: number; name: string; role: string; designation: string; location: string; dob: string }[]>('/api/users/birthdays')
+        .then(data => setBirthdays(getUpcomingBirthdays(data)))
+        .catch(() => setBdError(true))
+        .finally(() => setBdLoading(false)),
+    ]);
   }, []);
 
   async function handlePost() {
@@ -102,6 +113,7 @@ export default function Dashboard() {
   }
 
   async function handleDelete(id: number) {
+    if (!window.confirm('Delete this announcement? This cannot be undone.')) return;
     try {
       await apiFetch(`/api/announcements/${id}`, { method: 'DELETE' });
       setAnnouncements(prev => prev.filter(a => a.id !== id));
@@ -158,6 +170,8 @@ export default function Dashboard() {
           {/* Feed */}
           {annLoading ? (
             <p style={{ fontSize: 13, color: '#9ca3af', margin: 0 }}>Loading…</p>
+          ) : annError ? (
+            <p style={{ fontSize: 13, color: '#991b1b', margin: 0 }}>Failed to load announcements.</p>
           ) : announcements.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '32px 0' }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>📢</div>
@@ -179,7 +193,7 @@ export default function Dashboard() {
                           <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{ann.author_name}</span>
                           <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 999, background: roleStyle.bg, color: roleStyle.text, textTransform: 'capitalize' }}>{ann.author_role}</span>
                         </div>
-                        <span style={{ fontSize: 11, color: '#9ca3af' }}>{timeAgo(ann.created_at)}</span>
+                        <span style={{ fontSize: 11, color: '#9ca3af' }}>{formatIST(ann.created_at)}</span>
                       </div>
                       {canDelete(ann) && (
                         <button
@@ -208,6 +222,8 @@ export default function Dashboard() {
 
           {bdLoading ? (
             <p style={{ fontSize: 13, color: '#9ca3af', margin: 0 }}>Loading…</p>
+          ) : bdError ? (
+            <p style={{ fontSize: 13, color: '#991b1b', margin: 0 }}>Failed to load birthdays.</p>
           ) : birthdays.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '24px 0' }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>🎂</div>

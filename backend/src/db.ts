@@ -7,7 +7,7 @@ types.setTypeParser(20, (val: string) => parseInt(val, 10));
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.DATABASE_URL?.includes('supabase') ? { rejectUnauthorized: false } : false,
-  max: 2,
+  max: 10,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 10_000,
 });
@@ -88,6 +88,12 @@ async function _runMigrations(): Promise<void> {
       created_at   TEXT NOT NULL DEFAULT '',
       updated_at   TEXT NOT NULL DEFAULT ''
     )`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_candidates_job_id  ON candidates(job_id)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_candidates_stage    ON candidates(stage)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_attendance_uid_date ON attendance(user_id, date)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_advances_emp_status ON employee_advances(employee_id, status)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_pr_employee         ON payroll_records(employee_id)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_pr_run_id           ON payroll_records(run_id)`),
   ]);
 }
 

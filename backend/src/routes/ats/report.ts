@@ -29,18 +29,30 @@ router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
 
   const positions = await db.query<any>(`SELECT * FROM positions p ${where} ORDER BY p.created_at DESC`, params);
 
-  const result = await Promise.all(positions.map(async (pos: any) => {
+  if (positions.length === 0) return res.json([]);
+
+  // Single bulk query: all candidate stage counts for the matched positions
+  const jobIds = positions.map((p: any) => p.job_id);
+  const candidateCounts = await db.query<{ job_id: string; stage: string; count: number }>(
+    `SELECT job_id, stage, COUNT(*) AS count FROM candidates WHERE job_id IN (${jobIds.map(() => '?').join(', ')}) GROUP BY job_id, stage`,
+    jobIds,
+  );
+
+  // Build nested map: job_id -> stage -> count
+  const countMap = new Map<string, Map<string, number>>();
+  for (const row of candidateCounts) {
+    if (!countMap.has(row.job_id)) countMap.set(row.job_id, new Map());
+    countMap.get(row.job_id)!.set(row.stage, Number(row.count));
+  }
+
+  const result = positions.map((pos: any) => {
+    const stageMap = countMap.get(pos.job_id) || new Map<string, number>();
     const stageCounts: Record<string, number> = {};
     let totalFilled = 0;
 
     for (const stage of stages) {
       const actualStages = stageMapping[stage] || [stage];
-      const placeholders = actualStages.map(() => '?').join(', ');
-      const row = await db.queryOne<any>(
-        `SELECT COUNT(*) as count FROM candidates WHERE job_id = ? AND stage IN (${placeholders})`,
-        [pos.job_id, ...actualStages],
-      );
-      const count = row?.count || 0;
+      const count = actualStages.reduce((sum, s) => sum + (stageMap.get(s) || 0), 0);
       stageCounts[stage] = count;
       if (stage === 'Joined') totalFilled = count;
     }
@@ -56,7 +68,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
       stage_counts: stageCounts,
       open: Math.max(0, (pos.total_req || 0) - totalFilled),
     };
-  }));
+  });
 
   res.json(result);
 });

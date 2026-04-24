@@ -32,17 +32,17 @@ router.get('/managers', authenticateToken, requireRole('admin', 'hr'), async (_r
 });
 
 router.put('/:id', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
-  const { name, email, emp_id, dob, date_of_joining, project, location, state, site_office, designation, status, reporting_manager_id } = req.body;
+  const { name, email, role, emp_id, dob, date_of_joining, project, location, state, site_office, designation, status, reporting_manager_id } = req.body;
 
   const existing = await db.queryOne('SELECT id FROM users WHERE id = ?', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'User not found' });
 
   await db.run(
     `UPDATE users
-     SET name = ?, email = ?, emp_id = ?, dob = ?, date_of_joining = ?, project = ?, location = ?, state = ?,
+     SET name = ?, email = ?, role = ?, emp_id = ?, dob = ?, date_of_joining = ?, project = ?, location = ?, state = ?,
          site_office = ?, designation = ?, status = ?, reporting_manager_id = ?
      WHERE id = ?`,
-    [name, email, emp_id ?? null, dob ?? null, date_of_joining ?? null, project ?? '', location ?? '', state ?? '',
+    [name, email, role ?? 'employee', emp_id ?? null, dob ?? null, date_of_joining ?? null, project ?? '', location ?? '', state ?? '',
      site_office ?? '', designation ?? '', status ?? 'active', reporting_manager_id ?? null, req.params.id],
   );
 

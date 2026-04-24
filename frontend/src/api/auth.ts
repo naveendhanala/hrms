@@ -17,7 +17,17 @@ export function createEmployee(data: {
   email: string;
   password: string;
   name: string;
+  role?: string;
   reporting_manager_id?: number | null;
+  emp_id?: string;
+  dob?: string;
+  date_of_joining?: string;
+  project?: string;
+  location?: string;
+  state?: string;
+  site_office?: string;
+  designation?: string;
+  status?: string;
 }) {
   return apiFetch<AuthUser>('/api/auth/create-employee', {
     method: 'POST',

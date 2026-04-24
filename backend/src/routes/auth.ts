@@ -38,8 +38,11 @@ router.get('/me', authenticateToken, (req: AuthRequest, res: Response) => {
   res.json({ user: req.user });
 });
 
-router.post('/create-employee', authenticateToken, requireRole('admin'), async (req: AuthRequest, res: Response) => {
-  const { username, email, password, name, role, reporting_manager_id } = req.body;
+router.post('/create-employee', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+  const {
+    username, email, password, name, role, reporting_manager_id,
+    emp_id, dob, date_of_joining, project, location, state, site_office, designation, status,
+  } = req.body;
 
   if (!username || !email || !password || !name) {
     return res.status(400).json({ error: 'username, email, password, and name are required' });
@@ -52,8 +55,14 @@ router.post('/create-employee', authenticateToken, requireRole('admin'), async (
   const userRole = role || 'employee';
 
   const result = await db.run(
-    'INSERT INTO users (username, email, password_hash, name, role, reporting_manager_id) VALUES (?, ?, ?, ?, ?, ?) RETURNING id',
-    [username, email, hashedPassword, name, userRole, reporting_manager_id ?? null],
+    `INSERT INTO users (username, email, password_hash, name, role, reporting_manager_id,
+       emp_id, dob, date_of_joining, project, location, state, site_office, designation, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+    [
+      username, email, hashedPassword, name, userRole, reporting_manager_id ?? null,
+      emp_id ?? null, dob ?? null, date_of_joining ?? null,
+      project ?? '', location ?? '', state ?? '', site_office ?? '', designation ?? '', status ?? 'active',
+    ],
   );
 
   res.status(201).json({ id: result.lastInsertRowid, username, email, name, role: userRole });

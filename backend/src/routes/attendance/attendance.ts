@@ -59,7 +59,7 @@ router.get('/report', authenticateToken, requireRole('admin', 'hr'), async (req:
       COUNT(CASE WHEN a.status = 'leave'   THEN 1 END) AS leave_days,
       COUNT(CASE WHEN a.status = 'absent'  THEN 1 END) AS absent,
       COUNT(a.id) AS total_days,
-      ROUND(AVG(CASE WHEN a.work_hours IS NOT NULL THEN a.work_hours END), 1) AS avg_hours,
+      ROUND(AVG(CASE WHEN a.work_hours IS NOT NULL THEN a.work_hours END)::numeric, 1) AS avg_hours,
       (SELECT status FROM attendance WHERE user_id = u.id AND date = ?) AS today_status
     FROM users u
     LEFT JOIN attendance a ON u.id = a.user_id AND a.date LIKE ?

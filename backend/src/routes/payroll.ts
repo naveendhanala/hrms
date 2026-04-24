@@ -105,25 +105,64 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
   const totalDays   = getDaysInMonth(month, year);
   const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
 
-  const employees = await db.query<any>(`
-    SELECT u.id, u.state, u.date_of_joining,
-           COALESCE(s.basic_salary,      0) AS basic_salary,
-           COALESCE(s.hra,               0) AS hra,
-           COALESCE(s.meal_allowance,    0) AS meal_allowance,
-           COALESCE(s.conveyance_allowance, 0) AS conveyance_allowance,
-           COALESCE(s.special_allowance,   0) AS special_allowance,
-           COALESCE(s.deductions,          0) AS deductions,
-           COALESCE(t.tax_regime, 'new')   AS tax_regime
-    FROM users u
-    LEFT JOIN salary_master s ON s.employee_id = u.id
-    LEFT JOIN employee_tax_config t ON t.employee_id = u.id
-    WHERE u.role != 'admin' AND u.status = 'active'
-  `);
-
-  const stateTaxRows = await db.query<{ state: string; amount: number }>('SELECT state, amount FROM prof_tax_by_state');
-  const stateTaxMap = new Map(stateTaxRows.map(r => [r.state.trim().toLowerCase(), r.amount]));
-
   const { fyStartYear, fyEndYear } = getFY(month, year);
+
+  // Fetch employees, prof-tax config, and all per-employee datasets in parallel
+  const [employees, stateTaxRows, allAtt, allAdv, allTds] = await Promise.all([
+    db.query<any>(`
+      SELECT u.id, u.state, u.date_of_joining,
+             COALESCE(s.basic_salary,           0) AS basic_salary,
+             COALESCE(s.hra,                    0) AS hra,
+             COALESCE(s.meal_allowance,         0) AS meal_allowance,
+             COALESCE(s.conveyance_allowance,   0) AS conveyance_allowance,
+             COALESCE(s.special_allowance,      0) AS special_allowance,
+             COALESCE(s.deductions,             0) AS deductions,
+             COALESCE(t.tax_regime,         'new') AS tax_regime
+      FROM users u
+      LEFT JOIN salary_master s ON s.employee_id = u.id
+      LEFT JOIN employee_tax_config t ON t.employee_id = u.id
+      WHERE u.role != 'admin' AND u.status = 'active'
+    `),
+
+    db.query<{ state: string; amount: number }>('SELECT state, amount FROM prof_tax_by_state'),
+
+    // All attendance counts for the month — one query for all employees
+    db.query<any>(`
+      SELECT user_id,
+             COUNT(*) FILTER (WHERE status = 'present') AS present_days,
+             COUNT(*) FILTER (WHERE status = 'leave')   AS leave_days,
+             COUNT(*) FILTER (WHERE status = 'absent')  AS absent_days,
+             COUNT(*) FILTER (WHERE lop = true)         AS lop_days
+      FROM attendance
+      WHERE date LIKE ?
+      GROUP BY user_id
+    `, [`${monthPrefix}%`]),
+
+    // Active advance deductions per employee
+    db.query<any>(`
+      SELECT employee_id, COALESCE(SUM(monthly_amt), 0) AS total
+      FROM employee_advances
+      WHERE status = 'active'
+      GROUP BY employee_id
+    `),
+
+    // TDS already deducted in this FY per employee
+    db.query<any>(`
+      SELECT pr.employee_id,
+             COUNT(*)                              AS processed_count,
+             COALESCE(SUM(pr.tds_deduction), 0)   AS tds_total
+      FROM payroll_records pr
+      JOIN payroll_runs run ON pr.run_id = run.id
+      WHERE run.status IN ('processed', 'paid')
+        AND ((run.year = ? AND run.month >= 4) OR (run.year = ? AND run.month <= 3))
+      GROUP BY pr.employee_id
+    `, [fyStartYear, fyEndYear]),
+  ]);
+
+  const stateTaxMap = new Map(stateTaxRows.map(r => [r.state.trim().toLowerCase(), r.amount]));
+  const attMap      = new Map(allAtt.map((r: any) => [r.user_id,      r]));
+  const advMap      = new Map(allAdv.map((r: any) => [r.employee_id,  Number(r.total)]));
+  const tdsMap      = new Map(allTds.map((r: any) => [r.employee_id,  r]));
 
   const insertSql = `
     INSERT INTO payroll_records
@@ -134,26 +173,12 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
   `;
 
   for (const emp of employees) {
-    const att = await db.queryOne<any>(`
-      SELECT
-        COUNT(CASE WHEN status = 'present' THEN 1 END) AS present_days,
-        COUNT(CASE WHEN status = 'leave'   THEN 1 END) AS leave_days,
-        COUNT(CASE WHEN status = 'absent'  THEN 1 END) AS absent_days
-      FROM attendance
-      WHERE user_id = ? AND date LIKE ?
-    `, [emp.id, `${monthPrefix}%`]);
+    const att         = attMap.get(emp.id);
+    const presentDays = Number(att?.present_days ?? 0);
+    const leaveDays   = Number(att?.leave_days   ?? 0);
+    const absentDays  = Number(att?.absent_days  ?? 0);
+    const lopDays     = Number(att?.lop_days     ?? 0);
 
-    const presentDays = att?.present_days ?? 0;
-    const leaveDays   = att?.leave_days   ?? 0;
-    const absentDays  = att?.absent_days  ?? 0;
-
-    const lopRow = await db.queryOne<any>(`
-      SELECT COUNT(*) AS lop_count
-      FROM attendance
-      WHERE user_id = ? AND date LIKE ? AND lop = true
-    `, [emp.id, `${monthPrefix}%`]);
-
-    const lopDays = Number(lopRow?.lop_count ?? 0);
     const totalAllowances = emp.hra + emp.meal_allowance + emp.conveyance_allowance + emp.special_allowance;
     const grossSalary     = emp.basic_salary + totalAllowances;
     const lopDeduction    = totalDays > 0 ? Math.round((lopDays * grossSalary) / totalDays * 100) / 100 : 0;
@@ -161,23 +186,11 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
     const empState = (emp.state || '').trim().toLowerCase();
     const profTax  = empState && stateTaxMap.has(empState) ? stateTaxMap.get(empState)! : 0;
 
-    const advRow = await db.queryOne<{ total: number }>(
-      `SELECT COALESCE(SUM(monthly_amt), 0) AS total FROM employee_advances WHERE employee_id = ? AND status = 'active'`,
-      [emp.id],
-    );
-    const advanceDeduction = advRow?.total ?? 0;
+    const advanceDeduction = advMap.get(emp.id) ?? 0;
 
-    // TDS: look up already-processed months for this employee in this FY (current run is draft, excluded)
-    const tdsRow = await db.queryOne<{ processed_count: number; tds_total: number }>(`
-      SELECT COUNT(*) AS processed_count, COALESCE(SUM(pr.tds_deduction), 0) AS tds_total
-      FROM payroll_records pr
-      JOIN payroll_runs run ON pr.run_id = run.id
-      WHERE pr.employee_id = ?
-        AND run.status IN ('processed', 'paid')
-        AND ((run.year = ? AND run.month >= 4) OR (run.year = ? AND run.month <= 3))
-    `, [emp.id, fyStartYear, fyEndYear]);
+    const tdsRow              = tdsMap.get(emp.id);
     const processedMonthsInFY = Number(tdsRow?.processed_count ?? 0);
-    const tdsAlreadyDeducted  = Number(tdsRow?.tds_total ?? 0);
+    const tdsAlreadyDeducted  = Number(tdsRow?.tds_total       ?? 0);
 
     const regime = (emp.tax_regime || 'new') as 'old' | 'new';
     const { monthlyTds } = computeAnnualTax(

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import AppLayout from '../components/shared/AppLayout';
-import { getAdvances, createAdvance, deleteAdvance, type EmployeeAdvance } from '../api/advances';
+import { getAdvances, createAdvance, updateAdvance, deleteAdvance, type EmployeeAdvance } from '../api/advances';
 import { getEmployees, type Employee } from '../api/users';
 
 function fmt(n: number) {
@@ -26,6 +26,11 @@ export default function AdvancesPage() {
   const [empId, setEmpId] = useState('');
   const [amount, setAmount] = useState('');
   const [months, setMonths] = useState('');
+
+  const [editAdvance, setEditAdvance] = useState<EmployeeAdvance | null>(null);
+  const [editAmount, setEditAmount] = useState('');
+  const [editMonths, setEditMonths] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
 
   const flash = (m: string, isErr = false) => {
     if (isErr) setError(m); else setMsg(m);
@@ -70,6 +75,34 @@ export default function AdvancesPage() {
     }
   };
 
+  const handleEditOpen = (a: EmployeeAdvance) => {
+    setEditAdvance(a);
+    setEditAmount(String(a.amount));
+    setEditMonths(String(a.months));
+  };
+
+  const handleEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editAdvance) return;
+    const amt = Number(editAmount);
+    const mo  = Number(editMonths);
+    if (amt <= 0 || mo <= 0 || !Number.isInteger(mo)) {
+      flash('Amount must be > 0 and months must be a positive integer', true);
+      return;
+    }
+    setEditSaving(true);
+    try {
+      await updateAdvance(editAdvance.id, { amount: amt, months: mo });
+      flash('Advance updated successfully');
+      setEditAdvance(null);
+      load();
+    } catch (e: any) {
+      flash(e.message || 'Failed to update', true);
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const handleDelete = async (id: number) => {
     if (!window.confirm('Delete this advance record?')) return;
     try {
@@ -111,6 +144,75 @@ export default function AdvancesPage() {
       {error && (
         <div style={{ marginBottom: 14, padding: '10px 16px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 13 }}>
           {error}
+        </div>
+      )}
+
+      {editAdvance && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 16, padding: 28, width: 480, maxWidth: '95vw',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+          }}>
+            <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700, color: '#111827' }}>Edit Advance</h3>
+            <p style={{ margin: '0 0 20px', fontSize: 13, color: '#6b7280' }}>
+              {editAdvance.employee_name}{editAdvance.emp_id ? ` (${editAdvance.emp_id})` : ''}
+            </p>
+            {Number(editAdvance.recovered) > 0 && (
+              <p style={{ margin: '0 0 16px', fontSize: 12, color: '#92400e', background: '#fef3c7', borderRadius: 8, padding: '8px 12px' }}>
+                ₹{Number(editAdvance.recovered).toLocaleString('en-IN')} already recovered — amount cannot be set below this value.
+              </p>
+            )}
+            <form onSubmit={handleEditSave} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Advance Amount (₹) *</label>
+                <input
+                  type='number' min='1' step='1' value={editAmount}
+                  onChange={e => setEditAmount(e.target.value)}
+                  required
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Recovery Months *</label>
+                <input
+                  type='number' min='1' step='1' value={editMonths}
+                  onChange={e => setEditMonths(e.target.value)}
+                  required
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+              {editAmount && editMonths && Number(editAmount) > 0 && Number(editMonths) > 0 && (
+                <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: 13, color: '#6d28d9', fontWeight: 600 }}>
+                  Monthly deduction: {fmt(Math.round((Number(editAmount) / Number(editMonths)) * 100) / 100)}
+                </p>
+              )}
+              <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+                <button
+                  type='button'
+                  onClick={() => setEditAdvance(null)}
+                  style={{
+                    padding: '8px 20px', borderRadius: 8, border: '1px solid #d1d5db',
+                    background: '#fff', color: '#374151', fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type='submit' disabled={editSaving}
+                  style={{
+                    padding: '8px 24px', borderRadius: 8, border: 'none',
+                    background: '#6d28d9', color: '#fff', fontWeight: 600, fontSize: 13,
+                    cursor: editSaving ? 'not-allowed' : 'pointer', opacity: editSaving ? 0.6 : 1,
+                  }}
+                >
+                  {editSaving ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
@@ -218,17 +320,28 @@ export default function AdvancesPage() {
                       </span>
                     </td>
                     <td style={{ ...TD }}>
-                      {Number(a.recovered) === 0 && (
+                      <div style={{ display: 'flex', gap: 8 }}>
                         <button
-                          onClick={() => handleDelete(a.id)}
+                          onClick={() => handleEditOpen(a)}
                           style={{
                             padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                            border: '1px solid #fecaca', background: '#fef2f2', color: '#991b1b', cursor: 'pointer',
+                            border: '1px solid #c4b5fd', background: '#f5f3ff', color: '#6d28d9', cursor: 'pointer',
                           }}
                         >
-                          Delete
+                          Edit
                         </button>
-                      )}
+                        {Number(a.recovered) === 0 && (
+                          <button
+                            onClick={() => handleDelete(a.id)}
+                            style={{
+                              padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+                              border: '1px solid #fecaca', background: '#fef2f2', color: '#991b1b', cursor: 'pointer',
+                            }}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

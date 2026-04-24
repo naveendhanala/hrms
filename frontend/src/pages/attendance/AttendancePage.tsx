@@ -2,15 +2,15 @@ import { useState, useEffect, useCallback } from 'react';
 import AppLayout from '../../components/shared/AppLayout';
 import { useAuth } from '../../context/AuthContext';
 import {
-  getToday, getSummary, getMyAttendance, getAllAttendance, getAttendanceReport,
-  getMyLeaves, getAllLeaves, checkIn, checkOut, applyLeave,
+  getMyAttendance, getAllAttendance, getAttendanceReport,
+  getMyLeaves, getAllLeaves, applyLeave,
   approveLeave, rejectLeave, getLeaveBalance, setManualAttendance,
   getAllLeaveBalances, grantQuarterlyLeaves,
-  type AttendanceRecord, type LeaveRequest, type AttendanceSummary, type EmployeeAttendanceSummary,
+  type AttendanceRecord, type LeaveRequest, type EmployeeAttendanceSummary,
 } from '../../api/attendance';
 import { getEmployees } from '../../api/users';
 
-type Tab = 'summary' | 'overview' | 'history' | 'leaves' | 'all-attendance' | 'manage-leaves' | 'mark-attendance';
+type Tab = 'summary' | 'history' | 'leaves' | 'all-attendance' | 'manage-leaves' | 'mark-attendance';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -52,13 +52,10 @@ export default function AttendancePage() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin' || user?.role === 'hr';
 
-  const [tab, setTab] = useState<Tab>('overview');
-  const now = new Date();
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [year, setYear] = useState(now.getFullYear());
+  const [tab, setTab] = useState<Tab>('history');
+  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [year, setYear] = useState(new Date().getFullYear());
 
-  const [today, setToday] = useState<AttendanceRecord | null>(null);
-  const [summary, setSummary] = useState<AttendanceSummary>({ present: 0, absent: 0, leave: 0 });
   const [history, setHistory] = useState<AttendanceRecord[]>([]);
   const [allRecords, setAllRecords] = useState<AttendanceRecord[]>([]);
   const [report, setReport] = useState<EmployeeAttendanceSummary[]>([]);
@@ -83,15 +80,6 @@ export default function AttendancePage() {
   const [showLeaveForm, setShowLeaveForm] = useState(false);
 
   const flash = (msg: string) => { setActionMsg(msg); setTimeout(() => setActionMsg(''), 3000); };
-
-  const loadOverview = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [t, s] = await Promise.all([getToday(), getSummary(month, year)]);
-      setToday(t);
-      setSummary(s);
-    } finally { setLoading(false); }
-  }, [month, year]);
 
   const loadHistory = useCallback(async () => {
     setLoading(true);
@@ -155,22 +143,11 @@ export default function AttendancePage() {
   }, [month, year]);
 
   useEffect(() => { if (tab === 'summary') loadReport(); }, [tab, loadReport]);
-  useEffect(() => { if (tab === 'overview') loadOverview(); }, [tab, loadOverview]);
   useEffect(() => { if (tab === 'history') loadHistory(); }, [tab, loadHistory]);
   useEffect(() => { if (tab === 'all-attendance') loadAllAttendance(); }, [tab, loadAllAttendance]);
   useEffect(() => { if (tab === 'leaves') loadLeaves(); }, [tab, loadLeaves]);
   useEffect(() => { if (tab === 'manage-leaves') loadAllLeaves(); }, [tab, loadAllLeaves]);
   useEffect(() => { if (tab === 'mark-attendance') loadMarkAttendance(); }, [tab, loadMarkAttendance]);
-
-  const handleCheckIn = async () => {
-    try { setToday(await checkIn()); flash('Checked in successfully'); }
-    catch (e: any) { flash(e.message || 'Error checking in'); }
-  };
-
-  const handleCheckOut = async () => {
-    try { setToday(await checkOut()); flash('Checked out successfully'); }
-    catch (e: any) { flash(e.message || 'Error checking out'); }
-  };
 
   const handleApplyLeave = async () => {
     if (!leaveForm.start_date || !leaveForm.end_date || !leaveForm.reason) {
@@ -196,7 +173,6 @@ export default function AttendancePage() {
   };
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'overview', label: 'Overview' },
     { key: 'history', label: 'My Attendance' },
     { key: 'leaves', label: 'My Leaves' },
     ...(isAdmin ? [
@@ -207,13 +183,6 @@ export default function AttendancePage() {
     ] : []),
   ];
 
-  const card = (label: string, value: number, bg: string, color: string) => (
-    <div style={{ background: '#fff', borderRadius: 12, padding: '16px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-      <p style={{ margin: '0 0 4px', fontSize: 12, color: '#6b7280', fontWeight: 500 }}>{label}</p>
-      <p style={{ margin: 0, fontSize: 28, fontWeight: 700, color }}>{value}</p>
-      <div style={{ marginTop: 6, height: 3, borderRadius: 2, background: bg, opacity: 0.5 }} />
-    </div>
-  );
 
   return (
     <AppLayout>
@@ -356,57 +325,6 @@ export default function AttendancePage() {
           </div>
         );
       })()}
-
-      {/* ── OVERVIEW ── */}
-      {tab === 'overview' && (
-        <div>
-          {/* Check-in / Check-out card */}
-          <div style={{ background: '#fff', borderRadius: 14, padding: '20px 24px', marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-            <div>
-              <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>Today — {now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
-              {today ? (
-                <div style={{ marginTop: 6, display: 'flex', gap: 20 }}>
-                  <span style={{ fontSize: 13 }}><b>In:</b> {today.check_in || '—'}</span>
-                  <span style={{ fontSize: 13 }}><b>Out:</b> {today.check_out || '—'}</span>
-                  {today.work_hours != null && <span style={{ fontSize: 13 }}><b>Hours:</b> {today.work_hours}h</span>}
-                  <Badge label={today.status} />
-                </div>
-              ) : (
-                <p style={{ margin: '6px 0 0', fontSize: 13, color: '#9ca3af' }}>Not checked in yet</p>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={handleCheckIn} disabled={!!today?.check_in} style={{
-                padding: '8px 20px', borderRadius: 8, border: 'none', cursor: today?.check_in ? 'not-allowed' : 'pointer',
-                background: today?.check_in ? '#f3f4f6' : '#6366f1', color: today?.check_in ? '#9ca3af' : 'white',
-                fontWeight: 600, fontSize: 13,
-              }}>Check In</button>
-              <button onClick={handleCheckOut} disabled={!today?.check_in || !!today?.check_out} style={{
-                padding: '8px 20px', borderRadius: 8, border: 'none',
-                cursor: (!today?.check_in || !!today?.check_out) ? 'not-allowed' : 'pointer',
-                background: (!today?.check_in || !!today?.check_out) ? '#f3f4f6' : '#10b981',
-                color: (!today?.check_in || !!today?.check_out) ? '#9ca3af' : 'white',
-                fontWeight: 600, fontSize: 13,
-              }}>Check Out</button>
-            </div>
-          </div>
-
-          {/* Month selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-            <span style={{ fontSize: 13, color: '#6b7280', fontWeight: 500 }}>Month:</span>
-            <select value={month} onChange={e => setMonth(Number(e.target.value))} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #e5e7eb', fontSize: 13 }}>
-              {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m} {year}</option>)}
-            </select>
-          </div>
-
-          {/* Summary cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-            {card('Present', summary.present, '#22c55e', '#166534')}
-            {card('On Leave', summary.leave, '#6366f1', '#3730a3')}
-            {card('Absent', summary.absent, '#ef4444', '#991b1b')}
-          </div>
-        </div>
-      )}
 
       {/* ── MY ATTENDANCE HISTORY ── */}
       {tab === 'history' && (

@@ -86,6 +86,7 @@ export default function EmployeesPage() {
       await updateEmployee(editingEmployee.id, {
         name:                 editForm.name ?? editingEmployee.name,
         email:                editForm.email ?? editingEmployee.email,
+        role:                 editForm.role ?? editingEmployee.role,
         emp_id:               editForm.emp_id ?? undefined,
         dob:                  editForm.dob ?? undefined,
         date_of_joining:      editForm.date_of_joining ?? undefined,
@@ -457,6 +458,13 @@ export default function EmployeesPage() {
                 <input className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="e.g. Senior Engineer"
                   value={editForm.designation ?? ''} onChange={e => setEditForm(f => ({ ...f, designation: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  value={editForm.role ?? 'employee'} onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))}>
+                  {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                </select>
               </div>
             </div>
             {/* Row 4 */}

@@ -29,6 +29,7 @@ export interface Manager {
 export interface EmployeeUpdate {
   name: string;
   email: string;
+  role?: string;
   emp_id?: string;
   dob?: string;
   date_of_joining?: string;

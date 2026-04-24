@@ -5,45 +5,43 @@ import { authenticateToken, AuthRequest } from '../../middleware/auth';
 
 const router = Router();
 
-router.get('/pipeline', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const stages = [
-    'Profile shared with interviewer',
-    'Offer Negotiation',
-    'Offer Released',
-    'Joined',
-    'Offer Dropped',
-    'Rejected',
-  ];
+router.get('/pipeline', authenticateToken, async (_req: AuthRequest, res: Response) => {
+  const rows = await db.query<any>(`
+    SELECT p.job_id, p.project, p.department, p.role, p.total_req, p.required_by_date, p.hr_spoc,
+           p.created_at,
+           COUNT(c.id) FILTER (WHERE c.stage = 'Profile shared with interviewer') AS s0,
+           COUNT(c.id) FILTER (WHERE c.stage = 'Offer Negotiation')               AS s1,
+           COUNT(c.id) FILTER (WHERE c.stage = 'Offer Released')                  AS s2,
+           COUNT(c.id) FILTER (WHERE c.stage = 'Joined')                          AS s3,
+           COUNT(c.id) FILTER (WHERE c.stage = 'Offer Dropped')                   AS s4,
+           COUNT(c.id) FILTER (WHERE c.stage = 'Rejected')                        AS s5,
+           COUNT(c.id)                                                              AS total
+    FROM positions p
+    LEFT JOIN candidates c ON c.job_id = p.job_id
+    WHERE p.status = 'active'
+      AND (p.approval_status IS NULL OR p.approval_status = '' OR p.approval_status = 'approved')
+    GROUP BY p.job_id, p.project, p.department, p.role, p.total_req,
+             p.required_by_date, p.hr_spoc, p.created_at
+    ORDER BY p.created_at DESC
+  `);
 
-  const positions = await db.query<any>(
-    "SELECT * FROM positions WHERE status = 'active' AND (approval_status IS NULL OR approval_status = '' OR approval_status = 'approved')",
-  );
-
-  const result = await Promise.all(positions.map(async (pos: any) => {
-    const stageCounts: Record<string, number> = {};
-    let total = 0;
-
-    for (const stage of stages) {
-      const row = await db.queryOne<any>(
-        'SELECT COUNT(*) as count FROM candidates WHERE job_id = ? AND stage = ?',
-        [pos.job_id, stage],
-      );
-      const count = row?.count || 0;
-      stageCounts[stage] = count;
-      total += count;
-    }
-
-    return {
-      job_id: pos.job_id,
-      project: pos.project,
-      department: pos.department,
-      role: pos.role,
-      total_req: pos.total_req,
-      required_by_date: pos.required_by_date,
-      hr_spoc: pos.hr_spoc,
-      total,
-      stage_counts: stageCounts,
-    };
+  const result = rows.map((row: any) => ({
+    job_id: row.job_id,
+    project: row.project,
+    department: row.department,
+    role: row.role,
+    total_req: row.total_req,
+    required_by_date: row.required_by_date,
+    hr_spoc: row.hr_spoc,
+    total: Number(row.total),
+    stage_counts: {
+      'Profile shared with interviewer': Number(row.s0),
+      'Offer Negotiation':               Number(row.s1),
+      'Offer Released':                  Number(row.s2),
+      'Joined':                          Number(row.s3),
+      'Offer Dropped':                   Number(row.s4),
+      'Rejected':                        Number(row.s5),
+    },
   }));
 
   res.json(result);

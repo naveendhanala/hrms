@@ -31,6 +31,28 @@ router.post('/', authenticateToken, requireRole('admin', 'hr'), async (req: Auth
   res.status(201).json({ id: result.lastInsertRowid });
 });
 
+router.put('/:id', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+  const { amount, months } = req.body;
+  if (!amount || !months)
+    return res.status(400).json({ error: 'amount and months are required' });
+
+  const advance = await db.queryOne<any>('SELECT * FROM employee_advances WHERE id = ?', [req.params.id]);
+  if (!advance) return res.status(404).json({ error: 'Advance not found' });
+
+  if (Number(amount) < Number(advance.recovered))
+    return res.status(400).json({ error: 'Amount cannot be less than amount already recovered' });
+
+  const monthly_amt = Math.round((Number(amount) / Number(months)) * 100) / 100;
+  const now = new Date().toISOString();
+
+  await db.run(
+    'UPDATE employee_advances SET amount = ?, months = ?, monthly_amt = ?, updated_at = ? WHERE id = ?',
+    [Number(amount), Number(months), monthly_amt, now, req.params.id],
+  );
+
+  res.json({ ok: true });
+});
+
 router.delete('/:id', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
   const advance = await db.queryOne<any>('SELECT * FROM employee_advances WHERE id = ?', [req.params.id]);
   if (!advance) return res.status(404).json({ error: 'Advance not found' });
