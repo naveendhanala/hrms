@@ -81,8 +81,7 @@ function TaxSheet({ emp, onClose }: { emp: TaxEmployee; onClose: () => void }) {
                     ['Basic Salary', sc.basic_salary],
                     ['HRA', sc.hra],
                     sc.meal_allowance    > 0 ? ['Meal Allowance',    sc.meal_allowance]    : null,
-                    sc.fuel_allowance    > 0 ? ['Fuel Allowance',    sc.fuel_allowance]    : null,
-                    sc.driver_allowance  > 0 ? ['Driver Allowance',  sc.driver_allowance]  : null,
+                    sc.conveyance_allowance > 0 ? ['Conveyance Allowance', sc.conveyance_allowance] : null,
                     sc.special_allowance > 0 ? ['Special Allowance', sc.special_allowance] : null,
                   ].filter(Boolean).map((row, i, arr) => { const [label, val] = row as [string, number]; return (
                     <tr key={i} style={{ borderBottom: i < arr.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
@@ -191,6 +190,17 @@ function TaxSheet({ emp, onClose }: { emp: TaxEmployee; onClose: () => void }) {
                     <td style={{ padding: '8px 14px', color: '#374151' }}>(+) Health & Education Cess @ 4%<span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 6 }}>(on tax + surcharge)</span></td>
                     <td style={{ padding: '8px 14px', textAlign: 'right', color: '#374151' }}>{fmt(emp.cess)}</td>
                   </tr>
+                  {emp.marginalRelief > 0 && (
+                    <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#f0fdf4' }}>
+                      <td style={{ padding: '8px 14px', color: '#374151' }}>
+                        (–) Marginal Relief
+                        <span style={{ marginLeft: 6, fontSize: 11, color: '#9ca3af' }}>
+                          surcharge capped so total tax ≤ tax at surcharge threshold + excess income
+                        </span>
+                      </td>
+                      <td style={{ padding: '8px 14px', textAlign: 'right', color: '#16a34a', fontWeight: 600 }}>({fmt(emp.marginalRelief)})</td>
+                    </tr>
+                  )}
                   <tr style={{ background: emp.totalAnnualTax > 0 ? '#fef2f2' : '#f0fdf4', borderBottom: '1px solid #e5e7eb' }}>
                     <td style={{ padding: '10px 14px', fontWeight: 700, color: emp.totalAnnualTax > 0 ? '#991b1b' : '#14532d' }}>Total Annual Tax</td>
                     <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, color: emp.totalAnnualTax > 0 ? '#991b1b' : '#14532d' }}>{fmt(emp.totalAnnualTax)}</td>

@@ -422,7 +422,7 @@ export default function AppLayout({ children }: Props) {
             <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {user.name}
             </p>
-            <p style={{ margin: 0, fontSize: 11, color: '#9ca3af', textTransform: 'capitalize' }}>{user.role}</p>
+            <p style={{ margin: 0, fontSize: 11, color: '#9ca3af' }}>{user.designation || user.role}</p>
           </div>
           <button
             onClick={handleLogout}

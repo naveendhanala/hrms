@@ -7,6 +7,7 @@ export interface AuthUser {
   email: string;
   name: string;
   role: UserRole;
+  designation?: string;
   site_office?: string | null;
 }
 

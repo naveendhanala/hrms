@@ -72,6 +72,10 @@ async function _runMigrations(): Promise<void> {
     pool.query(`ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS advance_deduction REAL NOT NULL DEFAULT 0`),
     pool.query(`ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS tds_deduction REAL NOT NULL DEFAULT 0`),
     pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_joining TEXT`),
+    pool.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='salary_master' AND column_name='fuel_allowance') THEN ALTER TABLE salary_master RENAME COLUMN fuel_allowance TO conveyance_allowance; END IF; END $$`),
+    pool.query(`ALTER TABLE salary_master DROP COLUMN IF EXISTS driver_allowance`),
+    pool.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payroll_records' AND column_name='fuel_allowance') THEN ALTER TABLE payroll_records RENAME COLUMN fuel_allowance TO conveyance_allowance; END IF; END $$`),
+    pool.query(`ALTER TABLE payroll_records DROP COLUMN IF EXISTS driver_allowance`),
     pool.query(`CREATE TABLE IF NOT EXISTS employee_advances (
       id           SERIAL PRIMARY KEY,
       employee_id  INTEGER NOT NULL REFERENCES users(id),
@@ -260,8 +264,7 @@ async function _init(): Promise<void> {
       deductions             REAL    NOT NULL DEFAULT 0,
       monthly_leave_allowance REAL   NOT NULL DEFAULT 1,
       meal_allowance         REAL    NOT NULL DEFAULT 0,
-      fuel_allowance         REAL    NOT NULL DEFAULT 0,
-      driver_allowance       REAL    NOT NULL DEFAULT 0,
+      conveyance_allowance   REAL    NOT NULL DEFAULT 0,
       special_allowance      REAL    NOT NULL DEFAULT 0,
       updated_at             TEXT    NOT NULL DEFAULT ''
     )
@@ -295,10 +298,9 @@ async function _init(): Promise<void> {
       lop_days         REAL    NOT NULL DEFAULT 0,
       lop_deduction    REAL    NOT NULL DEFAULT 0,
       prof_tax         REAL    NOT NULL DEFAULT 0,
-      meal_allowance   REAL    NOT NULL DEFAULT 0,
-      fuel_allowance   REAL    NOT NULL DEFAULT 0,
-      driver_allowance REAL    NOT NULL DEFAULT 0,
-      created_at       TEXT    NOT NULL DEFAULT '',
+      meal_allowance         REAL    NOT NULL DEFAULT 0,
+      conveyance_allowance   REAL    NOT NULL DEFAULT 0,
+      created_at             TEXT    NOT NULL DEFAULT '',
       updated_at       TEXT    NOT NULL DEFAULT '',
       UNIQUE(run_id, employee_id)
     )

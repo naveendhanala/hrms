@@ -19,7 +19,7 @@ router.get('/', authenticateToken, requireRole('admin', 'hr'), async (_req: Auth
 
 router.get('/birthdays', authenticateToken, async (_req: AuthRequest, res: Response) => {
   const rows = await db.query(
-    "SELECT id, name, role, dob FROM users WHERE dob IS NOT NULL AND dob != '' AND role != 'admin' ORDER BY name ASC",
+    "SELECT id, name, role, designation, location, dob FROM users WHERE dob IS NOT NULL AND dob != '' AND role != 'admin' ORDER BY name ASC",
   );
   res.json(rows);
 });

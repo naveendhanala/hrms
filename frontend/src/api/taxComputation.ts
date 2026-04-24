@@ -11,8 +11,7 @@ export interface SalaryComponents {
   basic_salary: number;
   hra: number;
   meal_allowance: number;
-  fuel_allowance: number;
-  driver_allowance: number;
+  conveyance_allowance: number;
   special_allowance: number;
 }
 
@@ -34,6 +33,7 @@ export interface TaxEmployee {
   taxAfterRebate: number;
   surcharge: number;
   surchargeLabel: string;
+  marginalRelief: number;
   cess: number;
   totalAnnualTax: number;
   monthlyTds: number;

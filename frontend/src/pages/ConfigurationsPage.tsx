@@ -350,6 +350,103 @@ export default function ConfigurationsPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Marginal Relief */}
+          <div style={{
+            background: '#fff', borderRadius: 12, overflow: 'hidden',
+            border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+          }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#374151' }}>Marginal Relief on Surcharge</p>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#9ca3af' }}>
+                  Prevents a disproportionate jump in total tax when income just crosses a surcharge threshold.
+                </p>
+              </div>
+              <span style={{ marginLeft: 'auto', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: '#f0fdf4', color: '#16a34a', whiteSpace: 'nowrap' }}>
+                Auto-applied
+              </span>
+            </div>
+
+            {/* Rule explanation */}
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #f3f4f6' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+                The Rule
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: 16, marginTop: 1 }}>📐</span>
+                  <div style={{ fontSize: 13, color: '#374151', lineHeight: '20px' }}>
+                    <strong>Total tax (including surcharge + cess) on actual income</strong> must not exceed
+                    {' '}<strong>total tax at the surcharge threshold + the income that exceeds the threshold.</strong>
+                  </div>
+                </div>
+                <div style={{
+                  padding: '10px 14px', borderRadius: 8,
+                  background: '#fefce8', border: '1px solid #fde68a',
+                  fontFamily: 'monospace', fontSize: 12, color: '#78350f', lineHeight: '20px',
+                }}>
+                  Marginal Relief = max(0, Total Tax at actual income − (Total Tax at threshold + Excess income above threshold))
+                </div>
+              </div>
+            </div>
+
+            {/* Threshold table */}
+            <div style={{ padding: '0 0 4px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={TH}>Surcharge threshold crossed</th>
+                    <th style={{ ...TH, textAlign: 'center' }}>Surcharge rate jump</th>
+                    <th style={{ ...TH }}>Relief kicks in when…</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { threshold: '₹50 Lakh',  from: 'Nil',  to: '10%', condition: 'Taxable income is slightly above ₹50L' },
+                    { threshold: '₹1 Crore',  from: '10%',  to: '15%', condition: 'Taxable income is slightly above ₹1 Cr' },
+                    { threshold: '₹2 Crore',  from: '15%',  to: '25%', condition: 'Taxable income is slightly above ₹2 Cr' },
+                    { threshold: '₹5 Crore',  from: '25%',  to: '37% / 25%', condition: 'Taxable income is slightly above ₹5 Cr' },
+                  ].map((row, i) => (
+                    <tr key={i} style={{ borderTop: i > 0 ? '1px solid #f3f4f6' : undefined }}>
+                      <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 600, color: '#374151' }}>{row.threshold}</td>
+                      <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                        <span style={{ fontSize: 12, color: '#6b7280' }}>{row.from}</span>
+                        <span style={{ margin: '0 6px', color: '#d1d5db' }}>→</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#dc2626' }}>{row.to}</span>
+                      </td>
+                      <td style={{ padding: '10px 16px', fontSize: 12, color: '#6b7280' }}>{row.condition}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Example */}
+            <div style={{ padding: '14px 20px', borderTop: '1px solid #f3f4f6', background: '#fafafa' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+                Example — New Regime, Annual Salary ₹50,10,000
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                <div style={{ background: '#fff', border: '1px solid #fee2e2', borderRadius: 8, padding: '12px 14px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Without relief</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#dc2626', marginBottom: 3 }}>₹12,13,212</div>
+                  <div style={{ fontSize: 11, color: '#9ca3af' }}>Tax + 10% surcharge + 4% cess on taxable ₹49,35,000</div>
+                </div>
+                <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 14px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Tax at ₹50L salary exactly</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#374151', marginBottom: 3 }}>₹10,99,800</div>
+                  <div style={{ fontSize: 11, color: '#9ca3af' }}>Taxable ₹49,25,000 · no surcharge + 4% cess</div>
+                </div>
+                <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: 8, padding: '12px 14px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>After marginal relief</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#16a34a', marginBottom: 3 }}>₹11,09,800</div>
+                  <div style={{ fontSize: 11, color: '#9ca3af' }}>= Tax at ₹50L + ₹10,000 excess. Relief of ₹1,03,412.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
       )}
     </AppLayout>

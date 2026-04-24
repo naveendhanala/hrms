@@ -15,12 +15,14 @@ interface BirthdayEmployee {
   id: number;
   name: string;
   role: string;
+  designation: string;
+  location: string;
   dob: string;
   daysUntil: number;
   nextBirthday: Date;
 }
 
-function getUpcomingBirthdays(employees: { id: number; name: string; role: string; dob: string }[]): BirthdayEmployee[] {
+function getUpcomingBirthdays(employees: { id: number; name: string; role: string; designation: string; location: string; dob: string }[]): BirthdayEmployee[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -76,7 +78,7 @@ export default function Dashboard() {
       .catch(() => {})
       .finally(() => setAnnLoading(false));
 
-    apiFetch<{ id: number; name: string; role: string; dob: string }[]>('/api/users/birthdays')
+    apiFetch<{ id: number; name: string; role: string; designation: string; location: string; dob: string }[]>('/api/users/birthdays')
       .then(data => setBirthdays(getUpcomingBirthdays(data)))
       .catch(() => {})
       .finally(() => setBdLoading(false));
@@ -224,9 +226,16 @@ export default function Dashboard() {
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ margin: '0 0 2px', fontSize: 13, fontWeight: 600, color: '#111827' }}>{emp.name}</p>
-                      <p style={{ margin: 0, fontSize: 12, color: '#9ca3af', textTransform: 'capitalize' }}>{emp.role} · {monthDay}</p>
+                      <p style={{ margin: 0, fontSize: 12, color: '#9ca3af' }}>
+                        {emp.designation || emp.role}
+                        {emp.location ? ` · ${emp.location}` : ''}
+                      </p>
                     </div>
-                    <BirthdayLabel days={emp.daysUntil} />
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      {emp.daysUntil === 0 && <BirthdayLabel days={0} />}
+                      {emp.daysUntil === 1 && <BirthdayLabel days={1} />}
+                      <p style={{ margin: emp.daysUntil <= 1 ? '3px 0 0' : 0, fontSize: 13, fontWeight: 600, color: '#374151' }}>{monthDay}</p>
+                    </div>
                   </div>
                 );
               })}

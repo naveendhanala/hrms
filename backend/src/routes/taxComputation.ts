@@ -39,20 +39,40 @@ function computeTax(taxableIncome: number, slabs: TaxSlab[]) {
   return { breakdown, totalTax };
 }
 
-function getSurcharge(taxableIncome: number, taxAfterRebate: number, regime: 'old' | 'new') {
+function getSurcharge(taxableIncome: number, taxAfterRebate: number, regime: 'old' | 'new', slabs: TaxSlab[]) {
   let rate = 0;
   let label = '';
+  let threshold = 0;
+  let prevRate = 0; // surcharge rate that applied just below this bracket
+
   if (taxableIncome > 50_000_000) {
     rate = regime === 'new' ? 0.25 : 0.37;
     label = regime === 'new' ? '25% (capped under New Regime)' : '37%';
+    threshold = 50_000_000; prevRate = 0.25;
   } else if (taxableIncome > 20_000_000) {
-    rate = 0.25; label = '25%';
+    rate = 0.25; label = '25%'; threshold = 20_000_000; prevRate = 0.15;
   } else if (taxableIncome > 10_000_000) {
-    rate = 0.15; label = '15%';
+    rate = 0.15; label = '15%'; threshold = 10_000_000; prevRate = 0.10;
   } else if (taxableIncome > 5_000_000) {
-    rate = 0.10; label = '10%';
+    rate = 0.10; label = '10%'; threshold = 5_000_000; prevRate = 0;
   }
-  return { surcharge: Math.round(taxAfterRebate * rate), surchargeLabel: label };
+
+  if (rate === 0) return { surcharge: 0, surchargeLabel: '', marginalRelief: 0 };
+
+  const surcharge = Math.round(taxAfterRebate * rate);
+  const cess      = Math.round((taxAfterRebate + surcharge) * 0.04);
+  const totalWithSurcharge = taxAfterRebate + surcharge + cess;
+
+  // Total tax an employee would have paid if income were exactly at the threshold
+  const { totalTax: taxAtThreshold } = computeTax(threshold, slabs);
+  const surchargeAtThreshold = Math.round(taxAtThreshold * prevRate);
+  const cessAtThreshold      = Math.round((taxAtThreshold + surchargeAtThreshold) * 0.04);
+  const totalAtThreshold     = taxAtThreshold + surchargeAtThreshold + cessAtThreshold;
+
+  // Marginal relief caps total tax so it never exceeds (tax at threshold) + (income above threshold)
+  const marginalRelief = Math.max(0, totalWithSurcharge - (totalAtThreshold + (taxableIncome - threshold)));
+
+  return { surcharge, surchargeLabel: label, marginalRelief };
 }
 
 // Returns { fyStartYear, fyEndYear } for the Indian FY (April–March) that contains month/year
@@ -110,9 +130,9 @@ export function computeAnnualTax(
   }
 
   const taxAfterRebate = taxBeforeRebate - rebate;
-  const { surcharge, surchargeLabel } = getSurcharge(taxableIncome, taxAfterRebate, regime);
+  const { surcharge, surchargeLabel, marginalRelief } = getSurcharge(taxableIncome, taxAfterRebate, regime, slabs);
   const cess = Math.round((taxAfterRebate + surcharge) * 0.04);
-  const totalAnnualTax = taxAfterRebate + surcharge + cess;
+  const totalAnnualTax = taxAfterRebate + surcharge + cess - marginalRelief;
 
   // Remaining months = employee's total months in FY minus already-processed months
   const remainingMonths = Math.max(1, monthsInFY - processedMonthsInFY);
@@ -130,6 +150,7 @@ export function computeAnnualTax(
     taxAfterRebate,
     surcharge,
     surchargeLabel,
+    marginalRelief,
     cess,
     totalAnnualTax,
     monthlyTds,
@@ -148,9 +169,8 @@ router.get('/', authenticateToken, requireRole('admin', 'hr'), async (_req: Auth
            COALESCE(s.basic_salary,      0) AS basic_salary,
            COALESCE(s.hra,               0) AS hra,
            COALESCE(s.meal_allowance,    0) AS meal_allowance,
-           COALESCE(s.fuel_allowance,    0) AS fuel_allowance,
-           COALESCE(s.driver_allowance,  0) AS driver_allowance,
-           COALESCE(s.special_allowance, 0) AS special_allowance,
+           COALESCE(s.conveyance_allowance, 0) AS conveyance_allowance,
+           COALESCE(s.special_allowance,   0) AS special_allowance,
            COALESCE(t.tax_regime, 'new')    AS tax_regime
     FROM users u
     LEFT JOIN salary_master s ON s.employee_id = u.id
@@ -176,7 +196,7 @@ router.get('/', authenticateToken, requireRole('admin', 'hr'), async (_req: Auth
 
     const processedMonthsInFY = Number(tdsRow?.processed_count ?? 0);
     const tdsAlreadyDeducted = Number(tdsRow?.tds_total ?? 0);
-    const monthlyGross = emp.basic_salary + emp.hra + emp.meal_allowance + emp.fuel_allowance + emp.driver_allowance + emp.special_allowance;
+    const monthlyGross = emp.basic_salary + emp.hra + emp.meal_allowance + emp.conveyance_allowance + emp.special_allowance;
     const regime = (emp.tax_regime || 'new') as 'old' | 'new';
 
     return {
@@ -190,8 +210,7 @@ router.get('/', authenticateToken, requireRole('admin', 'hr'), async (_req: Auth
         basic_salary:      emp.basic_salary,
         hra:               emp.hra,
         meal_allowance:    emp.meal_allowance,
-        fuel_allowance:    emp.fuel_allowance,
-        driver_allowance:  emp.driver_allowance,
+        conveyance_allowance: emp.conveyance_allowance,
         special_allowance: emp.special_allowance,
       },
       ...computeAnnualTax(monthlyGross, regime, currentMonth, currentYear, emp.date_of_joining, tdsAlreadyDeducted, processedMonthsInFY),

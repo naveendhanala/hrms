@@ -15,7 +15,7 @@ const inputStyle: React.CSSProperties = {
 
 type SMEditMap = Record<number, {
   basic_salary: string; hra: string; meal_allowance: string;
-  fuel_allowance: string; driver_allowance: string; special_allowance: string;
+  conveyance_allowance: string; special_allowance: string;
 }>;
 
 export default function SalaryMasterPage() {
@@ -41,12 +41,11 @@ export default function SalaryMasterPage() {
     setSmEdits(prev => ({
       ...prev,
       [entry.employee_id]: {
-        basic_salary:     String(entry.basic_salary),
-        hra:              String(entry.hra),
-        meal_allowance:   String(entry.meal_allowance),
-        fuel_allowance:   String(entry.fuel_allowance),
-        driver_allowance: String(entry.driver_allowance),
-        special_allowance:String(entry.special_allowance),
+        basic_salary:         String(entry.basic_salary),
+        hra:                  String(entry.hra),
+        meal_allowance:       String(entry.meal_allowance),
+        conveyance_allowance: String(entry.conveyance_allowance),
+        special_allowance:    String(entry.special_allowance),
       },
     }));
   };
@@ -57,12 +56,11 @@ export default function SalaryMasterPage() {
     setSmSaving(employeeId);
     try {
       await updateSalaryMaster(employeeId, {
-        basic_salary:      Number(e.basic_salary)      || 0,
-        hra:               Number(e.hra)                || 0,
-        meal_allowance:    Number(e.meal_allowance)    || 0,
-        fuel_allowance:    Number(e.fuel_allowance)    || 0,
-        driver_allowance:  Number(e.driver_allowance)  || 0,
-        special_allowance: Number(e.special_allowance) || 0,
+        basic_salary:         Number(e.basic_salary)         || 0,
+        hra:                  Number(e.hra)                   || 0,
+        meal_allowance:       Number(e.meal_allowance)       || 0,
+        conveyance_allowance: Number(e.conveyance_allowance) || 0,
+        special_allowance:    Number(e.special_allowance)    || 0,
         deductions:        0,
       });
       setSmEditingRow(null);
@@ -120,15 +118,14 @@ export default function SalaryMasterPage() {
               <col style={{ width: '9%' }} />   {/* Basic */}
               <col style={{ width: '7%' }} />   {/* HRA */}
               <col style={{ width: '9%' }} />   {/* Meal */}
-              <col style={{ width: '8%' }} />   {/* Fuel */}
-              <col style={{ width: '9%' }} />   {/* Driver */}
+              <col style={{ width: '9%' }} />   {/* Conveyance */}
               <col style={{ width: '9%' }} />   {/* Special */}
               <col style={{ width: '8%' }} />   {/* Updated */}
               <col style={{ width: '8%' }} />   {/* Action */}
             </colgroup>
             <thead>
               <tr style={{ background: '#f9fafb' }}>
-                {['Emp ID', 'Employee', 'Designation', 'Gross', 'Basic', 'HRA', 'Meal Allow.', 'Fuel Allow.', 'Driver Allow.', 'Special Allow.', 'Updated', ''].map(h => (
+                {['Emp ID', 'Employee', 'Designation', 'Gross', 'Basic', 'HRA', 'Meal Allow.', 'Conv. Allow.', 'Special Allow.', 'Updated', ''].map(h => (
                   <th key={h} style={{ padding: '9px 8px', textAlign: h === '' ? 'center' : 'left', fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h}</th>
                 ))}
               </tr>
@@ -138,8 +135,8 @@ export default function SalaryMasterPage() {
                 const isEditing = smEditingRow === entry.employee_id;
                 const e = smEdits[entry.employee_id];
                 const gross = isEditing && e
-                  ? (Number(e.basic_salary) || 0) + (Number(e.hra) || 0) + (Number(e.meal_allowance) || 0) + (Number(e.fuel_allowance) || 0) + (Number(e.driver_allowance) || 0) + (Number(e.special_allowance) || 0)
-                  : entry.basic_salary + entry.hra + entry.meal_allowance + entry.fuel_allowance + entry.driver_allowance + entry.special_allowance;
+                  ? (Number(e.basic_salary) || 0) + (Number(e.hra) || 0) + (Number(e.meal_allowance) || 0) + (Number(e.conveyance_allowance) || 0) + (Number(e.special_allowance) || 0)
+                  : entry.basic_salary + entry.hra + entry.meal_allowance + entry.conveyance_allowance + entry.special_allowance;
 
                 return (
                   <tr key={entry.employee_id} style={{ borderTop: '1px solid #f3f4f6', background: isEditing ? '#faf5ff' : 'transparent' }}>
@@ -154,9 +151,8 @@ export default function SalaryMasterPage() {
                     {tdNum(entry.basic_salary,      isEditing, 'basic_salary',      entry.employee_id, e)}
                     {tdNum(entry.hra,               isEditing, 'hra',               entry.employee_id, e)}
                     {tdNum(entry.meal_allowance,    isEditing, 'meal_allowance',    entry.employee_id, e)}
-                    {tdNum(entry.fuel_allowance,    isEditing, 'fuel_allowance',    entry.employee_id, e)}
-                    {tdNum(entry.driver_allowance,  isEditing, 'driver_allowance',  entry.employee_id, e)}
-                    {tdNum(entry.special_allowance, isEditing, 'special_allowance', entry.employee_id, e)}
+                    {tdNum(entry.conveyance_allowance, isEditing, 'conveyance_allowance', entry.employee_id, e)}
+                    {tdNum(entry.special_allowance,   isEditing, 'special_allowance',   entry.employee_id, e)}
                     <td style={{ padding: '10px 8px', fontSize: 11, color: '#9ca3af', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {entry.updated_at
                         ? new Date(entry.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
