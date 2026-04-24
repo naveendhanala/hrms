@@ -88,6 +88,14 @@ async function _runMigrations(): Promise<void> {
       created_at   TEXT NOT NULL DEFAULT '',
       updated_at   TEXT NOT NULL DEFAULT ''
     )`),
+    pool.query(`CREATE TABLE IF NOT EXISTS leave_grant_log (
+      id           SERIAL PRIMARY KEY,
+      quarter      INTEGER NOT NULL,
+      year         INTEGER NOT NULL,
+      site_count   INTEGER NOT NULL DEFAULT 0,
+      office_count INTEGER NOT NULL DEFAULT 0,
+      granted_at   TEXT NOT NULL
+    )`),
     pool.query(`CREATE INDEX IF NOT EXISTS idx_candidates_job_id  ON candidates(job_id)`),
     pool.query(`CREATE INDEX IF NOT EXISTS idx_candidates_stage    ON candidates(stage)`),
     pool.query(`CREATE INDEX IF NOT EXISTS idx_attendance_uid_date ON attendance(user_id, date)`),
@@ -95,6 +103,39 @@ async function _runMigrations(): Promise<void> {
     pool.query(`CREATE INDEX IF NOT EXISTS idx_pr_employee         ON payroll_records(employee_id)`),
     pool.query(`CREATE INDEX IF NOT EXISTS idx_pr_run_id           ON payroll_records(run_id)`),
   ]);
+}
+
+// One-time backfill: if leave_grant_log is empty but leave_balances has data,
+// synthesise a historical row from the most recent balance update timestamp.
+async function _backfillGrantLog(): Promise<void> {
+  const existing = await pool.query('SELECT 1 FROM leave_grant_log LIMIT 1');
+  if (existing.rows.length > 0) return;
+
+  const latest = await pool.query<{ last_updated: string }>(
+    'SELECT MAX(updated_at) AS last_updated FROM leave_balances',
+  );
+  const lastUpdated = latest.rows[0]?.last_updated;
+  if (!lastUpdated) return;
+
+  const d       = new Date(lastUpdated);
+  const quarter = Math.ceil((d.getMonth() + 1) / 3);
+  const year    = d.getFullYear();
+
+  const counts = await pool.query<{ site_count: number; office_count: number }>(`
+    SELECT
+      COUNT(*) FILTER (WHERE u.site_office = 'Site')   AS site_count,
+      COUNT(*) FILTER (WHERE u.site_office = 'Office') AS office_count
+    FROM leave_balances lb
+    JOIN users u ON u.id = lb.user_id
+    WHERE lb.balance > 0
+  `);
+
+  const { site_count = 0, office_count = 0 } = counts.rows[0] ?? {};
+
+  await pool.query(
+    'INSERT INTO leave_grant_log (quarter, year, site_count, office_count, granted_at) VALUES ($1, $2, $3, $4, $5)',
+    [quarter, year, Number(site_count), Number(office_count), lastUpdated],
+  );
 }
 
 async function _init(): Promise<void> {
@@ -105,6 +146,7 @@ async function _init(): Promise<void> {
   `);
   if (rows.length > 0) {
     await _runMigrations();
+    await _backfillGrantLog();
     return;
   }
 

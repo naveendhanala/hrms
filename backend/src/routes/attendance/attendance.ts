@@ -296,7 +296,15 @@ router.get('/leave-balances/all', authenticateToken, requireRole('admin', 'hr'),
   res.json(rows);
 });
 
-// Manually trigger quarterly leave grant (admin/HR)
+// Last quarterly leave grant info (for status indicator)
+router.get('/grant-quarterly-leaves/last', authenticateToken, requireRole('admin', 'hr'), async (_req: AuthRequest, res: Response) => {
+  const row = await db.queryOne<any>(
+    'SELECT * FROM leave_grant_log ORDER BY granted_at DESC LIMIT 1',
+  );
+  res.json(row ?? null);
+});
+
+// Cron-only endpoint — not exposed in the UI
 router.post('/grant-quarterly-leaves', authenticateToken, requireRole('admin', 'hr'), async (_req: AuthRequest, res: Response) => {
   const result = await grantQuarterlyLeaves();
   res.json({ ok: true, ...result });

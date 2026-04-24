@@ -1,16 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
+import * as XLSX from 'xlsx';
 import AppLayout from '../../components/shared/AppLayout';
 import { useAuth } from '../../context/AuthContext';
 import {
-  getMyAttendance, getAllAttendance, getAttendanceReport,
+  getMyAttendance, getAllAttendance,
   getMyLeaves, getAllLeaves, applyLeave,
   approveLeave, rejectLeave, getLeaveBalance, setManualAttendance,
-  getAllLeaveBalances, grantQuarterlyLeaves,
-  type AttendanceRecord, type LeaveRequest, type EmployeeAttendanceSummary,
+  getAllLeaveBalances, getLastGrantInfo,
+  type AttendanceRecord, type LeaveRequest, type LastGrantInfo,
 } from '../../api/attendance';
 import { getEmployees } from '../../api/users';
 
-type Tab = 'summary' | 'history' | 'leaves' | 'all-attendance' | 'manage-leaves' | 'mark-attendance';
+type Tab = 'history' | 'leaves' | 'all-attendance' | 'manage-leaves' | 'mark-attendance';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -58,8 +59,6 @@ export default function AttendancePage() {
 
   const [history, setHistory] = useState<AttendanceRecord[]>([]);
   const [allRecords, setAllRecords] = useState<AttendanceRecord[]>([]);
-  const [report, setReport] = useState<EmployeeAttendanceSummary[]>([]);
-  const [reportSearch, setReportSearch] = useState('');
   const [leaveBalance, setLeaveBalance] = useState<number>(0);
   const [myLeaves, setMyLeaves] = useState<LeaveRequest[]>([]);
   const [allLeaves, setAllLeaves] = useState<LeaveRequest[]>([]);
@@ -73,7 +72,7 @@ export default function AttendancePage() {
   const [markLoading, setMarkLoading] = useState(false);
   const [markError, setMarkError] = useState('');
   const [markSaving, setMarkSaving] = useState<string | null>(null);
-  const [markGranting, setMarkGranting] = useState(false);
+  const [lastGrant, setLastGrant] = useState<LastGrantInfo | null | undefined>(undefined);
 
   // Leave form
   const [leaveForm, setLeaveForm] = useState({ start_date: '', end_date: '', type: 'casual', reason: '' });
@@ -90,12 +89,6 @@ export default function AttendancePage() {
   const loadAllAttendance = useCallback(async () => {
     setLoading(true);
     try { setAllRecords(await getAllAttendance(month, year)); }
-    finally { setLoading(false); }
-  }, [month, year]);
-
-  const loadReport = useCallback(async () => {
-    setLoading(true);
-    try { setReport(await getAttendanceReport(month, year)); }
     finally { setLoading(false); }
   }, [month, year]);
 
@@ -119,11 +112,13 @@ export default function AttendancePage() {
     setMarkLoading(true);
     setMarkError('');
     try {
-      const [employees, records, balances] = await Promise.all([
+      const [employees, records, balances, grantInfo] = await Promise.all([
         getEmployees(),
         getAllAttendance(month, year),
         getAllLeaveBalances(),
+        getLastGrantInfo(),
       ]);
+      setLastGrant(grantInfo);
       const active = employees.filter(e => e.role !== 'admin' && e.status === 'active');
       setMarkEmployees(active.map(e => ({ user_id: e.id, user_name: e.name })));
       const grid: Record<number, Record<string, string>> = {};
@@ -142,7 +137,6 @@ export default function AttendancePage() {
     }
   }, [month, year]);
 
-  useEffect(() => { if (tab === 'summary') loadReport(); }, [tab, loadReport]);
   useEffect(() => { if (tab === 'history') loadHistory(); }, [tab, loadHistory]);
   useEffect(() => { if (tab === 'all-attendance') loadAllAttendance(); }, [tab, loadAllAttendance]);
   useEffect(() => { if (tab === 'leaves') loadLeaves(); }, [tab, loadLeaves]);
@@ -178,7 +172,6 @@ export default function AttendancePage() {
     ...(isAdmin ? [
       { key: 'manage-leaves' as Tab, label: 'Manage Leaves' },
       { key: 'mark-attendance' as Tab, label: 'Mark Attendance' },
-      { key: 'summary' as Tab, label: 'Summary' },
       { key: 'all-attendance' as Tab, label: 'All Attendance' },
     ] : []),
   ];
@@ -202,129 +195,6 @@ export default function AttendancePage() {
           {actionMsg}
         </div>
       )}
-
-      {/* ── SUMMARY (Admin/HR) ── */}
-      {tab === 'summary' && isAdmin && (() => {
-        const filtered = report.filter(e =>
-          e.user_name.toLowerCase().includes(reportSearch.toLowerCase()) ||
-          e.user_role.toLowerCase().includes(reportSearch.toLowerCase())
-        );
-        const totalPresent = report.reduce((s, e) => s + e.present, 0);
-        const totalAbsent  = report.reduce((s, e) => s + e.absent, 0);
-        const totalLeave   = report.reduce((s, e) => s + e.leave_days, 0);
-        const presentToday = report.filter(e => e.today_status === 'present').length;
-        const onLeaveToday = report.filter(e => e.today_status === 'leave').length;
-
-        const statCard = (label: string, value: number | string, color: string, sub?: string) => (
-          <div style={{ background: '#fff', borderRadius: 12, padding: '16px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', flex: 1 }}>
-            <p style={{ margin: '0 0 4px', fontSize: 12, color: '#6b7280', fontWeight: 500 }}>{label}</p>
-            <p style={{ margin: 0, fontSize: 28, fontWeight: 700, color }}>{value}</p>
-            {sub && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#9ca3af' }}>{sub}</p>}
-          </div>
-        );
-
-        const TODAY_STYLE: Record<string, { bg: string; color: string }> = {
-          present: { bg: '#dcfce7', color: '#166534' },
-          leave:   { bg: '#dbeafe', color: '#1e40af' },
-          absent:  { bg: '#fee2e2', color: '#991b1b' },
-        };
-
-        return (
-          <div>
-            {/* Month selector */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <select value={month} onChange={e => setMonth(Number(e.target.value))}
-                  style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #e5e7eb', fontSize: 13 }}>
-                  {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m} {year}</option>)}
-                </select>
-                <button
-                  onClick={() => {
-                    const headers = ['Employee', 'Role', 'Today Status', 'Present', 'On Leave', 'Absent', 'Avg Hours', 'Attendance %'];
-                    const rows = filtered.map(e => {
-                      const totalTracked = e.present + e.leave_days + e.absent;
-                      const pct = totalTracked > 0 ? Math.round(e.present / totalTracked * 100) : '';
-                      return [e.user_name, e.user_role, e.today_status ?? '', e.present, e.leave_days, e.absent, e.avg_hours ?? '', pct === '' ? '' : `${pct}%`];
-                    });
-                    downloadCSV(`attendance_summary_${MONTHS[month-1]}_${year}.csv`, headers, rows);
-                  }}
-                  style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 13, color: '#374151', display: 'flex', alignItems: 'center', gap: 5 }}
-                >
-                  ↓ Download CSV
-                </button>
-              </div>
-              <input
-                type="text"
-                placeholder="Search by name or role…"
-                value={reportSearch}
-                onChange={e => setReportSearch(e.target.value)}
-                style={{ width: 220, padding: '6px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13, outline: 'none' }}
-              />
-            </div>
-
-            {/* Stat cards */}
-            <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-              {statCard('Total Employees', report.length, '#111827')}
-              {statCard('Present Today', presentToday, '#166534', `${report.length ? Math.round(presentToday / report.length * 100) : 0}% of team`)}
-              {statCard('On Leave Today', onLeaveToday, '#1e40af')}
-              {statCard(`Present (${MONTHS[month-1]})`, totalPresent, '#166534')}
-              {statCard(`On Leave (${MONTHS[month-1]})`, totalLeave, '#1e40af')}
-              {statCard(`Absent (${MONTHS[month-1]})`, totalAbsent, '#991b1b')}
-            </div>
-
-            {/* Per-employee table */}
-            {loading ? <p style={{ color: '#9ca3af', fontSize: 13 }}>Loading...</p> : (
-              <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ background: '#f9fafb' }}>
-                      {['Employee', 'Role', 'Today', 'Present', 'On Leave', 'Absent', 'Avg Hours', 'Attendance %'].map(h => (
-                        <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.length === 0 ? (
-                      <tr><td colSpan={8} style={{ padding: 24, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No records</td></tr>
-                    ) : filtered.map(e => {
-                      const totalTracked = e.present + e.leave_days + e.absent;
-                      const attendancePct = totalTracked > 0 ? Math.round(e.present / totalTracked * 100) : null;
-                      const ts = e.today_status ? TODAY_STYLE[e.today_status] || { bg: '#f3f4f6', color: '#374151' } : null;
-                      return (
-                        <tr key={e.user_id} style={{ borderTop: '1px solid #f3f4f6' }}>
-                          <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: '#111827' }}>{e.user_name}</td>
-                          <td style={{ padding: '10px 14px', fontSize: 12, color: '#6b7280', textTransform: 'capitalize' }}>{e.user_role}</td>
-                          <td style={{ padding: '10px 14px' }}>
-                            {ts ? (
-                              <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: ts.bg, color: ts.color, textTransform: 'capitalize' }}>
-                                {e.today_status}
-                              </span>
-                            ) : <span style={{ fontSize: 12, color: '#9ca3af' }}>—</span>}
-                          </td>
-                          <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: '#166534' }}>{e.present}</td>
-                          <td style={{ padding: '10px 14px', fontSize: 13, color: '#1e40af' }}>{e.leave_days}</td>
-                          <td style={{ padding: '10px 14px', fontSize: 13, color: '#991b1b' }}>{e.absent}</td>
-                          <td style={{ padding: '10px 14px', fontSize: 13, color: '#374151' }}>{e.avg_hours != null ? `${e.avg_hours}h` : '—'}</td>
-                          <td style={{ padding: '10px 14px' }}>
-                            {attendancePct !== null ? (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <div style={{ flex: 1, height: 6, background: '#f3f4f6', borderRadius: 3, minWidth: 60 }}>
-                                  <div style={{ width: `${attendancePct}%`, height: '100%', borderRadius: 3, background: attendancePct >= 80 ? '#22c55e' : attendancePct >= 60 ? '#f59e0b' : '#ef4444' }} />
-                                </div>
-                                <span style={{ fontSize: 12, fontWeight: 600, color: '#374151', minWidth: 32 }}>{attendancePct}%</span>
-                              </div>
-                            ) : <span style={{ fontSize: 12, color: '#9ca3af' }}>—</span>}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        );
-      })()}
 
       {/* ── MY ATTENDANCE HISTORY ── */}
       {tab === 'history' && (
@@ -527,6 +397,12 @@ export default function AttendancePage() {
           } catch {} // non-critical
         };
 
+        const quarterLabel = (q: number, y: number) => `Q${q} ${y}`;
+        const formatGrantDate = (iso: string) => {
+          const d = new Date(iso);
+          return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        };
+
         const handleCell = async (userId: number, day: number) => {
           const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
           const key = `${userId}-${dateStr}`;
@@ -548,16 +424,42 @@ export default function AttendancePage() {
           } finally { setMarkSaving(null); }
         };
 
-        const handleGrant = async () => {
-          setMarkGranting(true);
-          try {
-            const result = await grantQuarterlyLeaves();
-            flash(`Quarterly leaves granted — Site: ${result.site} emp, Office: ${result.office} emp`);
-            await refreshBalances();
-          } catch (err: any) {
-            flash(err.message || 'Grant failed');
-          } finally { setMarkGranting(false); }
+        const handleDownloadExcel = () => {
+          const daysInMonthN = new Date(year, month, 0).getDate();
+          const daysArr      = Array.from({ length: daysInMonthN }, (_, i) => i + 1);
+          const monthPrefix  = `${year}-${String(month).padStart(2, '0')}`;
+
+          const headers = [
+            'Employee', 'Present', 'Opening Leave Balance',
+            'On Leave', 'Closing Leave Balance', 'Absent',
+            ...daysArr.map(String),
+          ];
+
+          const dataRows = markEmployees.map(emp => {
+            const entries     = Object.entries(markGrid[emp.user_id] ?? {}).filter(([d]) => d.startsWith(monthPrefix));
+            const presentDays = entries.filter(([, s]) => s === 'present').length;
+            const leaveDays   = entries.filter(([, s]) => s === 'leave').length;
+            const absentDays  = entries.filter(([, s]) => s === 'absent').length;
+            const closingBal  = markBalances[emp.user_id] ?? 0;
+            const openingBal  = closingBal + leaveDays;
+            const LABEL: Record<string, string> = { present: 'P', absent: 'A', leave: 'L' };
+            const dayCells = daysArr.map(d => {
+              const dateStr = `${monthPrefix}-${String(d).padStart(2, '0')}`;
+              return LABEL[markGrid[emp.user_id]?.[dateStr] ?? ''] ?? '';
+            });
+            return [emp.user_name, presentDays, openingBal, leaveDays, closingBal, absentDays, ...dayCells];
+          });
+
+          const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
+          ws['!cols'] = [
+            { wch: 22 }, { wch: 9 }, { wch: 22 }, { wch: 9 }, { wch: 22 }, { wch: 8 },
+            ...daysArr.map(() => ({ wch: 4 })),
+          ];
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, `${MONTHS[month - 1]} ${year}`);
+          XLSX.writeFile(wb, `attendance_${MONTHS[month - 1]}_${year}.xlsx`);
         };
+
         return (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -569,14 +471,38 @@ export default function AttendancePage() {
                   {[year - 1, year, year + 1].map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
                 <span style={{ fontSize: 12, color: '#9ca3af' }}>Click cell: <b style={{ color: '#166534' }}>P</b> → <b style={{ color: '#991b1b' }}>A</b> → <b style={{ color: '#1e40af' }}>L</b></span>
+                <button
+                  onClick={handleDownloadExcel}
+                  style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 13, color: '#374151', display: 'flex', alignItems: 'center', gap: 5 }}
+                >
+                  ↓ Download Excel
+                </button>
               </div>
-              <button onClick={handleGrant} disabled={markGranting} style={{
-                padding: '6px 14px', borderRadius: 7, border: 'none', cursor: markGranting ? 'not-allowed' : 'pointer',
-                background: markGranting ? '#f3f4f6' : '#6366f1', color: markGranting ? '#9ca3af' : '#fff',
-                fontWeight: 600, fontSize: 12,
+
+              {/* Quarterly leave grant status indicator */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '7px 14px', borderRadius: 8,
+                background: '#f0fdf4', border: '1px solid #bbf7d0',
               }}>
-                {markGranting ? 'Granting…' : 'Grant Quarterly Leaves'}
-              </button>
+                <span style={{ fontSize: 18, lineHeight: 1 }}>✓</span>
+                <div>
+                  {lastGrant === undefined ? (
+                    <span style={{ fontSize: 12, color: '#6b7280' }}>Loading…</span>
+                  ) : lastGrant === null ? (
+                    <span style={{ fontSize: 12, color: '#6b7280' }}>No quarterly grant recorded yet</span>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#166534' }}>
+                        Quarterly leaves granted — {quarterLabel(lastGrant.quarter, lastGrant.year)}
+                      </span>
+                      <span style={{ fontSize: 11, color: '#6b7280', marginLeft: 8 }}>
+                        {formatGrantDate(lastGrant.granted_at)} · Site: {lastGrant.site_count} emp · Office: {lastGrant.office_count} emp
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
             {markError && (
               <div style={{ marginBottom: 12, padding: '10px 16px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 13 }}>
@@ -590,7 +516,11 @@ export default function AttendancePage() {
                   <thead>
                     <tr style={{ background: '#f9fafb' }}>
                       <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', position: 'sticky', left: 0, background: '#f9fafb', zIndex: 1, minWidth: 150, borderRight: '1px solid #e5e7eb' }}>Employee</th>
-                      <th style={{ padding: '10px 8px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', position: 'sticky', left: 150, background: '#f9fafb', zIndex: 1, minWidth: 58, borderRight: '1px solid #e5e7eb' }}>Bal</th>
+                      <th style={{ padding: '10px 8px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: 70 }}>Present</th>
+                      <th style={{ padding: '10px 6px', textAlign: 'center', fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: 110 }}>Opening Leave Balance</th>
+                      <th style={{ padding: '10px 8px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: 70 }}>On Leave</th>
+                      <th style={{ padding: '10px 6px', textAlign: 'center', fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: 110 }}>Closing Leave Balance</th>
+                      <th style={{ padding: '10px 8px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: 70, borderRight: '1px solid #e5e7eb' }}>Absent</th>
                       {days.map(d => (
                         <th key={d} style={{ padding: '10px 4px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#9ca3af', minWidth: 28 }}>{d}</th>
                       ))}
@@ -598,15 +528,42 @@ export default function AttendancePage() {
                   </thead>
                   <tbody>
                     {markEmployees.length === 0 ? (
-                      <tr><td colSpan={daysInMonth + 2} style={{ padding: 24, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No employees found</td></tr>
+                      <tr><td colSpan={daysInMonth + 6} style={{ padding: 24, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No employees found</td></tr>
                     ) : markEmployees.map(emp => (
                       <tr key={emp.user_id} style={{ borderTop: '1px solid #f3f4f6' }}>
                         <td style={{ padding: '6px 12px', fontSize: 12, fontWeight: 500, color: '#111827', position: 'sticky', left: 0, background: '#fff', zIndex: 1, borderRight: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
                           {emp.user_name}
                         </td>
-                        <td style={{ padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 700, position: 'sticky', left: 150, background: '#fff', zIndex: 1, borderRight: '1px solid #e5e7eb', color: (markBalances[emp.user_id] ?? 0) > 0 ? '#166534' : '#9ca3af' }}>
-                          {markBalances[emp.user_id] ?? 0}
-                        </td>
+                        {(() => {
+                          const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
+                          const entries = Object.entries(markGrid[emp.user_id] ?? {})
+                            .filter(([date]) => date.startsWith(monthPrefix));
+                          const presentDays = entries.filter(([, s]) => s === 'present').length;
+                          const leaveDays   = entries.filter(([, s]) => s === 'leave').length;
+                          const absentDays  = entries.filter(([, s]) => s === 'absent').length;
+                          const closingBal  = markBalances[emp.user_id] ?? 0;
+                          const openingBal  = closingBal + leaveDays;
+                          const balStyle    = (n: number) => ({ color: n > 0 ? '#166534' : '#9ca3af' });
+                          return (
+                            <>
+                              <td style={{ padding: '6px 8px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: presentDays > 0 ? '#166534' : '#9ca3af' }}>
+                                {presentDays}
+                              </td>
+                              <td style={{ padding: '6px 6px', textAlign: 'center', fontSize: 11, fontWeight: 700, ...balStyle(openingBal) }}>
+                                {openingBal}
+                              </td>
+                              <td style={{ padding: '6px 8px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: leaveDays > 0 ? '#1e40af' : '#9ca3af' }}>
+                                {leaveDays}
+                              </td>
+                              <td style={{ padding: '6px 6px', textAlign: 'center', fontSize: 11, fontWeight: 700, ...balStyle(closingBal) }}>
+                                {closingBal}
+                              </td>
+                              <td style={{ padding: '6px 8px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: absentDays > 0 ? '#991b1b' : '#9ca3af', borderRight: '1px solid #e5e7eb' }}>
+                                {absentDays}
+                              </td>
+                            </>
+                          );
+                        })()}
                         {days.map(d => {
                           const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                           const status = markGrid[emp.user_id]?.[dateStr];

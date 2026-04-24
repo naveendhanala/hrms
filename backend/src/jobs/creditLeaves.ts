@@ -9,23 +9,36 @@ const QUARTER_MONTHS = new Set([1, 4, 7, 10]);
  * Runs on 1 Jan, 1 Apr, 1 Jul, 1 Oct.
  */
 export async function grantQuarterlyLeaves(): Promise<{ site: number; office: number }> {
-  const ts = new Date().toISOString();
+  const ts  = new Date().toISOString();
+  const now = new Date();
+  const quarter = Math.ceil((now.getMonth() + 1) / 3);
+  const year    = now.getFullYear();
 
-  const siteResult = await db.run(`
-    INSERT INTO leave_balances (user_id, balance, updated_at)
-    SELECT u.id, 9, ? FROM users u
-    WHERE u.role != 'admin' AND u.status = 'active' AND u.site_office = 'Site'
-    ON CONFLICT(user_id) DO UPDATE SET balance = leave_balances.balance + 9, updated_at = ?
-  `, [ts, ts]);
+  const [siteResult, officeResult] = await Promise.all([
+    db.run(`
+      INSERT INTO leave_balances (user_id, balance, updated_at)
+      SELECT u.id, 9, ? FROM users u
+      WHERE u.role != 'admin' AND u.status = 'active' AND u.site_office = 'Site'
+      ON CONFLICT(user_id) DO UPDATE SET balance = leave_balances.balance + 9, updated_at = ?
+    `, [ts, ts]),
 
-  const officeResult = await db.run(`
-    INSERT INTO leave_balances (user_id, balance, updated_at)
-    SELECT u.id, 5, ? FROM users u
-    WHERE u.role != 'admin' AND u.status = 'active' AND u.site_office = 'Office'
-    ON CONFLICT(user_id) DO UPDATE SET balance = leave_balances.balance + 5, updated_at = ?
-  `, [ts, ts]);
+    db.run(`
+      INSERT INTO leave_balances (user_id, balance, updated_at)
+      SELECT u.id, 5, ? FROM users u
+      WHERE u.role != 'admin' AND u.status = 'active' AND u.site_office = 'Office'
+      ON CONFLICT(user_id) DO UPDATE SET balance = leave_balances.balance + 5, updated_at = ?
+    `, [ts, ts]),
+  ]);
 
-  return { site: siteResult.rowsAffected, office: officeResult.rowsAffected };
+  const site   = siteResult.rowsAffected;
+  const office = officeResult.rowsAffected;
+
+  await db.run(
+    'INSERT INTO leave_grant_log (quarter, year, site_count, office_count, granted_at) VALUES (?, ?, ?, ?, ?)',
+    [quarter, year, site, office, ts],
+  );
+
+  return { site, office };
 }
 
 /** Called by the Vercel cron on 1st of every quarter month. */

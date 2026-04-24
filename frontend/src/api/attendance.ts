@@ -116,5 +116,14 @@ export const setManualAttendance = (userId: number, date: string, status: 'prese
 export const getAllLeaveBalances = () =>
   apiFetch<{ user_id: number; balance: number }[]>(`${BASE}/leave-balances/all`);
 
-export const grantQuarterlyLeaves = () =>
-  apiFetch<{ ok: boolean; site: number; office: number }>(`${BASE}/grant-quarterly-leaves`, { method: 'POST' });
+export interface LastGrantInfo {
+  id: number;
+  quarter: number;
+  year: number;
+  site_count: number;
+  office_count: number;
+  granted_at: string;
+}
+
+export const getLastGrantInfo = () =>
+  apiFetch<LastGrantInfo | null>(`${BASE}/grant-quarterly-leaves/last`);
