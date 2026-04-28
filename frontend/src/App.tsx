@@ -1,7 +1,24 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, Component, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/shared/ProtectedRoute';
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 40, fontFamily: 'monospace' }}>
+          <h2 style={{ color: '#dc2626' }}>Runtime Error</h2>
+          <pre style={{ whiteSpace: 'pre-wrap', color: '#374151' }}>{(this.state.error as Error).message}</pre>
+          <pre style={{ whiteSpace: 'pre-wrap', color: '#9ca3af', fontSize: 12 }}>{(this.state.error as Error).stack}</pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const LoginPage          = lazy(() => import('./pages/LoginPage'));
 const Dashboard          = lazy(() => import('./pages/Dashboard'));
@@ -34,6 +51,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <ErrorBoundary>
         <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
@@ -69,6 +87,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
         </Suspense>
+        </ErrorBoundary>
       </AuthProvider>
     </BrowserRouter>
   );

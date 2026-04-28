@@ -102,7 +102,54 @@ async function _runMigrations(): Promise<void> {
     pool.query(`CREATE INDEX IF NOT EXISTS idx_advances_emp_status ON employee_advances(employee_id, status)`),
     pool.query(`CREATE INDEX IF NOT EXISTS idx_pr_employee         ON payroll_records(employee_id)`),
     pool.query(`CREATE INDEX IF NOT EXISTS idx_pr_run_id           ON payroll_records(run_id)`),
+    pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS job_description TEXT NOT NULL DEFAULT ''`),
+    pool.query(`CREATE TABLE IF NOT EXISTS ats_dept_roles (
+      id         SERIAL PRIMARY KEY,
+      department TEXT NOT NULL UNIQUE,
+      roles      TEXT NOT NULL DEFAULT '[]'
+    )`),
+    pool.query(`ALTER TABLE candidates ADD COLUMN IF NOT EXISTS competency_feedback TEXT NOT NULL DEFAULT ''`),
+    pool.query(`ALTER TABLE candidates ADD COLUMN IF NOT EXISTS offered_ctc TEXT NOT NULL DEFAULT ''`),
+    pool.query(`ALTER TABLE candidates ADD COLUMN IF NOT EXISTS offer_notes TEXT NOT NULL DEFAULT ''`),
   ]);
+
+  // Seed default dept-roles if table is empty
+  const deptCount = await pool.query('SELECT 1 FROM ats_dept_roles LIMIT 1');
+  if (deptCount.rows.length === 0) {
+    const defaults = [
+      { department: 'Engineering', roles: [
+        { name: 'Software Engineer',  level: 'APM Below' },
+        { name: 'Senior Engineer',    level: 'APM Below' },
+        { name: 'Tech Lead',          level: 'APM Above' },
+        { name: 'QA Engineer',        level: 'APM Below' },
+        { name: 'DevOps Engineer',    level: 'APM Below' },
+      ]},
+      { department: 'Operations', roles: [
+        { name: 'Project Manager',    level: 'APM Above' },
+        { name: 'Business Analyst',   level: 'APM Below' },
+        { name: 'Scrum Master',       level: 'APM Above' },
+        { name: 'Delivery Manager',   level: 'APM Above' },
+      ]},
+      { department: 'Finance', roles: [
+        { name: 'Finance Executive',  level: 'APM Below' },
+        { name: 'Finance Analyst',    level: 'APM Below' },
+        { name: 'Finance Manager',    level: 'APM Above' },
+      ]},
+      { department: 'HR', roles: [
+        { name: 'HR Executive',       level: 'APM Below' },
+        { name: 'HR Generalist',      level: 'APM Below' },
+        { name: 'Recruiter',          level: 'APM Below' },
+      ]},
+      { department: 'Sales', roles: [
+        { name: 'Sales Executive',                  level: 'APM Below' },
+        { name: 'Sales Manager',                    level: 'APM Above' },
+        { name: 'Business Development Executive',   level: 'APM Below' },
+      ]},
+    ];
+    for (const d of defaults) {
+      await pool.query('INSERT INTO ats_dept_roles (department, roles) VALUES ($1, $2) ON CONFLICT DO NOTHING', [d.department, JSON.stringify(d.roles)]);
+    }
+  }
 }
 
 // One-time backfill: if leave_grant_log is empty but leave_balances has data,
@@ -195,7 +242,7 @@ async function _init(): Promise<void> {
       alternate_mobile       TEXT NOT NULL DEFAULT '',
       job_id                 TEXT NOT NULL,
       candidate_current_role TEXT NOT NULL DEFAULT '',
-      stage                  TEXT NOT NULL DEFAULT 'Profile shared with interviewer',
+      stage                  TEXT NOT NULL DEFAULT 'Interview',
       interviewer            TEXT NOT NULL,
       feedback               TEXT NOT NULL DEFAULT '',
       sourcing_date          TEXT NOT NULL DEFAULT '',
@@ -422,9 +469,15 @@ async function _init(): Promise<void> {
     pool.query(`CREATE INDEX IF NOT EXISTS idx_attendance_date       ON attendance(date)`),
     pool.query(`CREATE INDEX IF NOT EXISTS idx_leaves_user           ON leaves(user_id)`),
     pool.query(`CREATE INDEX IF NOT EXISTS idx_announcements_user    ON announcements(user_id)`),
-    pool.query(`CREATE INDEX IF NOT EXISTS idx_salary_master_employee ON salary_master(employee_id)`),
-    pool.query(`CREATE INDEX IF NOT EXISTS idx_kb_articles_category  ON kb_articles(category)`),
-    pool.query(`CREATE INDEX IF NOT EXISTS idx_subcontractors_status ON subcontractors(status)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_salary_master_employee  ON salary_master(employee_id)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_kb_articles_category    ON kb_articles(category)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_subcontractors_status   ON subcontractors(status)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_candidates_stage        ON candidates(stage)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_positions_status        ON positions(status)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_positions_approval      ON positions(approval_status)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_advances_emp_status     ON employee_advances(employee_id, status)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_payroll_records_run     ON payroll_records(run_id)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_attempts_course_user    ON attempts(course_id, user_id)`),
   ]);
 
   await _runMigrations();

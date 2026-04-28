@@ -61,17 +61,12 @@ export default function EmployeesPage() {
   const [editForm, setEditForm] = useState<Partial<Employee>>({});
   const [saving, setSaving] = useState(false);
 
-  const fetchEmployees = () => {
-    setLoading(true);
-    getEmployees()
-      .then(setEmployees)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  };
-
   useEffect(() => {
-    fetchEmployees();
-    getManagers().then(setManagers).catch(() => {});
+    setLoading(true);
+    Promise.all([
+      getEmployees().then(setEmployees).catch((e: any) => setError(e.message)),
+      getManagers().then(setManagers).catch(() => {}),
+    ]).finally(() => setLoading(false));
   }, []);
 
   const openEdit = (emp: Employee) => {
@@ -83,7 +78,7 @@ export default function EmployeesPage() {
     if (!editingEmployee) return;
     setSaving(true);
     try {
-      await updateEmployee(editingEmployee.id, {
+      const patch = {
         name:                 editForm.name ?? editingEmployee.name,
         email:                editForm.email ?? editingEmployee.email,
         role:                 editForm.role ?? editingEmployee.role,
@@ -97,8 +92,9 @@ export default function EmployeesPage() {
         designation:          editForm.designation ?? '',
         status:               editForm.status ?? 'active',
         reporting_manager_id: editForm.reporting_manager_id ?? null,
-      });
-      fetchEmployees();
+      };
+      await updateEmployee(editingEmployee.id, patch);
+      setEmployees((prev) => prev.map((e) => e.id === editingEmployee.id ? { ...e, ...patch } : e));
       setEditingEmployee(null);
     } catch (e: any) {
       alert(e.message || 'Failed to save');

@@ -6,24 +6,43 @@ import { authenticateToken, AuthRequest } from '../../middleware/auth';
 const router = Router();
 
 router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const { job_id, stage, search } = req.query;
+  const { job_id, stage, search, project, page, limit } = req.query;
 
   let where = 'WHERE 1=1';
   const params: any[] = [];
 
-  if (job_id) { where += ' AND c.job_id = ?'; params.push(job_id); }
-  if (stage)  { where += ' AND c.stage = ?';  params.push(stage); }
+  if (job_id)  { where += ' AND c.job_id = ?';  params.push(job_id); }
+  if (stage)   { where += ' AND c.stage = ?';   params.push(stage); }
+  if (project) { where += ' AND p.project = ?'; params.push(project); }
   if (search) {
-    where += ' AND (c.name LIKE ? OR c.mobile LIKE ?)';
+    where += ' AND (c.name ILIKE ? OR c.mobile ILIKE ?)';
     params.push(`%${search}%`, `%${search}%`);
   }
 
+  const baseSql = `FROM candidates c LEFT JOIN positions p ON c.job_id = p.job_id ${where}`;
+
+  // Paginated mode — used by Profile Tracker
+  if (page !== undefined) {
+    const pageNum  = Math.max(1, parseInt(page as string) || 1);
+    const limitNum = Math.min(100, Math.max(10, parseInt(limit as string) || 50));
+    const offset   = (pageNum - 1) * limitNum;
+
+    const [rows, countRow] = await Promise.all([
+      db.query(
+        `SELECT c.*, p.project, p.department, p.role, p.required_by_date, p.total_req
+         ${baseSql} ORDER BY c.created_at DESC LIMIT ? OFFSET ?`,
+        [...params, limitNum, offset],
+      ),
+      db.queryOne<{ total: number }>(`SELECT COUNT(*) AS total ${baseSql}`, params),
+    ]);
+
+    return res.json({ data: rows, total: Number(countRow?.total ?? 0), page: pageNum, limit: limitNum });
+  }
+
+  // Legacy non-paginated mode — used by pipeline drill-down, Yet to Join, Admin list
   const rows = await db.query(
     `SELECT c.*, p.project, p.department, p.role, p.required_by_date, p.total_req
-     FROM candidates c
-     LEFT JOIN positions p ON c.job_id = p.job_id
-     ${where}
-     ORDER BY c.created_at DESC`,
+     ${baseSql} ORDER BY c.created_at DESC`,
     params,
   );
   res.json(rows);
@@ -42,7 +61,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res: Response) =>
 });
 
 router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const { name, mobile, job_id, interviewer, hr_spoc, email, current_company, experience, current_ctc, expected_ctc, notice_period, remarks } = req.body;
+  const { name, mobile, alternate_mobile, job_id, interviewer, hr_spoc, email, candidate_current_role, current_company, experience, current_ctc, expected_ctc, notice_period, remarks } = req.body;
 
   if (!name || !mobile || !job_id || !interviewer || !hr_spoc) {
     return res.status(400).json({ error: 'name, mobile, job_id, interviewer, and hr_spoc are required' });
@@ -59,12 +78,12 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   const today = new Date().toISOString().split('T')[0];
 
   await db.run(
-    `INSERT INTO candidates (id, name, mobile, email, job_id, interviewer, hr_spoc, current_company, experience, current_ctc, expected_ctc, notice_period, remarks, stage, sourcing_date, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, name, mobile, email || null, job_id, interviewer, hr_spoc,
-     current_company || null, experience || null, current_ctc || null,
+    `INSERT INTO candidates (id, name, mobile, alternate_mobile, email, job_id, interviewer, hr_spoc, candidate_current_role, current_company, experience, current_ctc, expected_ctc, notice_period, remarks, stage, sourcing_date, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, name, mobile, alternate_mobile || null, email || null, job_id, interviewer, hr_spoc,
+     candidate_current_role || null, current_company || null, experience || null, current_ctc || null,
      expected_ctc || null, notice_period || null, remarks || null,
-     'Profile shared with interviewer', today, now, now],
+     'Interview', today, now, now],
   );
 
   res.status(201).json(await db.queryOne('SELECT * FROM candidates WHERE id = ?', [id]));
@@ -84,9 +103,10 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res: Response) =>
 
   const fields = [
     'name', 'mobile', 'email', 'job_id', 'interviewer', 'hr_spoc',
-    'current_company', 'experience', 'current_ctc', 'expected_ctc',
+    'candidate_current_role', 'current_company', 'experience', 'current_ctc', 'expected_ctc',
     'notice_period', 'remarks', 'stage', 'feedback', 'sourcing_date',
-    'interview_done_date', 'offer_release_date', 'joined_date', 'offer_approval_status',
+    'interview_done_date', 'offer_release_date', 'expected_joining_date', 'joined_date',
+    'offered_ctc', 'offer_notes',
   ];
 
   const setClauses: string[] = [];
@@ -121,7 +141,7 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response)
   res.json({ message: 'Candidate deleted' });
 });
 
-router.post('/:id/request-offer', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/:id/request-approval', authenticateToken, async (req: AuthRequest, res: Response) => {
   const candidate = await db.queryOne<any>('SELECT * FROM candidates WHERE id = ?', [req.params.id]);
   if (!candidate) return res.status(404).json({ error: 'Candidate not found' });
   if (candidate.stage !== 'Offer Negotiation') {
@@ -129,16 +149,19 @@ router.post('/:id/request-offer', authenticateToken, async (req: AuthRequest, re
   }
 
   await db.run(
-    "UPDATE candidates SET offer_approval_status = 'pending', updated_at = ? WHERE id = ?",
+    "UPDATE candidates SET stage = 'Offer Approval Pending', updated_at = ? WHERE id = ?",
     [new Date().toISOString(), req.params.id],
   );
   res.json(await db.queryOne('SELECT * FROM candidates WHERE id = ?', [req.params.id]));
 });
 
 router.post('/:id/approve-offer', authenticateToken, async (req: AuthRequest, res: Response) => {
+  if (req.user!.role !== 'director') {
+    return res.status(403).json({ error: 'Only directors can approve offers' });
+  }
   const today = new Date().toISOString().split('T')[0];
   const result = await db.run(
-    "UPDATE candidates SET stage = 'Offer Released', offer_approval_status = 'approved', offer_release_date = ?, updated_at = ? WHERE id = ?",
+    "UPDATE candidates SET stage = 'Offer Released', offer_release_date = ?, updated_at = ? WHERE id = ?",
     [today, new Date().toISOString(), req.params.id],
   );
   if (result.rowsAffected === 0) return res.status(404).json({ error: 'Candidate not found' });
@@ -146,8 +169,11 @@ router.post('/:id/approve-offer', authenticateToken, async (req: AuthRequest, re
 });
 
 router.post('/:id/reject-offer', authenticateToken, async (req: AuthRequest, res: Response) => {
+  if (req.user!.role !== 'director') {
+    return res.status(403).json({ error: 'Only directors can reject offers' });
+  }
   const result = await db.run(
-    "UPDATE candidates SET offer_approval_status = 'rejected', updated_at = ? WHERE id = ?",
+    "UPDATE candidates SET stage = 'Offer Negotiation', updated_at = ? WHERE id = ?",
     [new Date().toISOString(), req.params.id],
   );
   if (result.rowsAffected === 0) return res.status(404).json({ error: 'Candidate not found' });

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { listCandidates, approveOffer, rejectOffer } from '../../../api/ats-candidates';
+import { listCandidates } from '../../../api/ats-candidates';
 import type { Candidate } from '../../../types';
 
 export default function AdminCandidateList() {
@@ -23,19 +23,9 @@ export default function AdminCandidateList() {
     load();
   }, [load]);
 
-  const handleApprove = async (id: string) => {
-    await approveOffer(id);
-    load();
-  };
-
-  const handleReject = async (id: string) => {
-    await rejectOffer(id);
-    load();
-  };
-
   const filtered =
     filter === 'pending'
-      ? candidates.filter((c) => c.offer_approval_status === 'pending')
+      ? candidates.filter((c) => c.stage === 'Offer Approval Pending')
       : candidates;
 
   return (
@@ -67,7 +57,7 @@ export default function AdminCandidateList() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {['Name', 'Job ID', 'Stage', 'Offer Status', 'HR SPOC', 'Actions'].map((h) => (
+                {['Name', 'Job ID', 'Stage', 'HR SPOC'].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     {h}
                   </th>
@@ -80,40 +70,7 @@ export default function AdminCandidateList() {
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">{c.name}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{c.job_id}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{c.stage}</td>
-                  <td className="px-4 py-3 text-sm">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        c.offer_approval_status === 'approved'
-                          ? 'bg-green-100 text-green-700'
-                          : c.offer_approval_status === 'rejected'
-                            ? 'bg-red-100 text-red-700'
-                            : c.offer_approval_status === 'pending'
-                              ? 'bg-yellow-100 text-yellow-700'
-                              : 'bg-gray-100 text-gray-500'
-                      }`}
-                    >
-                      {c.offer_approval_status || 'N/A'}
-                    </span>
-                  </td>
                   <td className="px-4 py-3 text-sm text-gray-600">{c.hr_spoc}</td>
-                  <td className="px-4 py-3 text-sm">
-                    {c.offer_approval_status === 'pending' && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleApprove(c.id)}
-                          className="text-green-600 hover:text-green-800 font-medium"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => handleReject(c.id)}
-                          className="text-red-600 hover:text-red-800 font-medium"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    )}
-                  </td>
                 </tr>
               ))}
             </tbody>

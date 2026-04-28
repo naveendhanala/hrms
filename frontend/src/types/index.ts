@@ -9,16 +9,20 @@ export interface AuthUser {
   role: UserRole;
   designation?: string;
   site_office?: string | null;
+  project?: string;
 }
 
 // ── ATS Types ────────────────────────────────────────────
 export const STAGES = [
-  'Profile shared with interviewer',
+  'Interview',
   'Offer Negotiation',
+  'Offer Approval Pending',
   'Offer Released',
   'Joined',
   'Offer Dropped',
   'Rejected',
+  'Candidate Not Responding',
+  'Screen Reject',
 ] as const;
 
 export type Stage = (typeof STAGES)[number];
@@ -41,6 +45,7 @@ export interface Position {
   interview_panel: string;
   hr_spoc: string;
   level: string;
+  job_description: string;
   approval_status: '' | 'pending' | 'approved' | 'rejected';
   created_at: string;
   updated_at: string;
@@ -56,14 +61,16 @@ export interface Candidate {
   candidate_current_role: string;
   stage: Stage;
   interviewer: string;
-  interviewer_feedback: string;
+  feedback: string;
   sourcing_date: string;
   interview_done_date: string;
   offer_release_date: string;
   expected_joining_date: string;
   joined_date: string;
   hr_spoc: string;
-  offer_approval_status: '' | 'pending' | 'approved' | 'rejected';
+  offered_ctc?: string;
+  offer_notes?: string;
+  competency_feedback?: string;
   created_at: string;
   updated_at: string;
   project: string;

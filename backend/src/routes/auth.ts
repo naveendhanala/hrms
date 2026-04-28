@@ -34,8 +34,10 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
   });
 });
 
-router.get('/me', authenticateToken, (req: AuthRequest, res: Response) => {
-  res.json({ user: req.user });
+router.get('/me', authenticateToken, async (req: AuthRequest, res: Response) => {
+  const user = await db.queryOne<any>('SELECT id, username, email, name, role, designation, site_office, project FROM users WHERE id = ?', [req.user!.id]);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json(user);
 });
 
 router.post('/create-employee', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {

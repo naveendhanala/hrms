@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import * as XLSX from 'xlsx';
 import AppLayout from '../../components/shared/AppLayout';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -450,6 +449,7 @@ export default function AttendancePage() {
             return [emp.user_name, presentDays, openingBal, leaveDays, closingBal, absentDays, ...dayCells];
           });
 
+          const XLSX = await import('xlsx');
           const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
           ws['!cols'] = [
             { wch: 22 }, { wch: 9 }, { wch: 22 }, { wch: 9 }, { wch: 22 }, { wch: 8 },

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { listPositions } from '../../../api/ats-positions';
-import type { Candidate, Position, Stage } from '../../../types';
-import { STAGES, HR_SPOC_OPTIONS } from '../../../types';
+import { getDirectory } from '../../../api/users';
+import type { Candidate, Position } from '../../../types';
+import { HR_SPOC_OPTIONS } from '../../../types';
 
 interface Props {
   initial?: Candidate | null;
@@ -15,9 +16,8 @@ const EMPTY: Partial<Candidate> = {
   alternate_mobile: '',
   job_id: '',
   candidate_current_role: '',
-  stage: STAGES[0],
   interviewer: '',
-  interviewer_feedback: '',
+  feedback: '',
   sourcing_date: '',
   interview_done_date: '',
   offer_release_date: '',
@@ -29,10 +29,13 @@ const EMPTY: Partial<Candidate> = {
 export default function CandidateForm({ initial, onSubmit, onCancel }: Props) {
   const [form, setForm] = useState<Partial<Candidate>>(EMPTY);
   const [positions, setPositions] = useState<Position[]>([]);
+  const [employees, setEmployees] = useState<{ id: string; name: string }[]>([]);
   const [saving, setSaving] = useState(false);
+  const [interviewerError, setInterviewerError] = useState('');
 
   useEffect(() => {
     listPositions().then(setPositions).catch(console.error);
+    getDirectory().then(setEmployees).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -57,23 +60,33 @@ export default function CandidateForm({ initial, onSubmit, onCancel }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.interviewer?.trim()) {
+      setInterviewerError('Please select an interviewer.');
+      return;
+    }
+    setInterviewerError('');
     setSaving(true);
     try {
-      await onSubmit(form);
+      const payload = initial
+        ? form
+        : { ...form, sourcing_date: new Date().toISOString().slice(0, 10) };
+      await onSubmit(payload);
     } finally {
       setSaving(false);
     }
   };
 
+  const suggestedPanel = positions.find((p) => p.job_id === form.job_id)?.interview_panel;
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
           <input name="name" value={form.name ?? ''} onChange={handleChange} required className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Mobile</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Mobile <span className="text-red-500">*</span></label>
           <input name="mobile" value={form.mobile ?? ''} onChange={handleChange} required className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
         </div>
         <div>
@@ -81,7 +94,7 @@ export default function CandidateForm({ initial, onSubmit, onCancel }: Props) {
           <input name="alternate_mobile" value={form.alternate_mobile ?? ''} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Job ID</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Job ID <span className="text-red-500">*</span></label>
           <select name="job_id" value={form.job_id ?? ''} onChange={handleChange} required className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
             <option value="">Select position</option>
             {positions.map((p) => (
@@ -95,49 +108,49 @@ export default function CandidateForm({ initial, onSubmit, onCancel }: Props) {
           <label className="block text-sm font-medium text-gray-700 mb-1">Current Role</label>
           <input name="candidate_current_role" value={form.candidate_current_role ?? ''} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
         </div>
+        {initial && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Stage</label>
+            <div className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-600">
+              {initial.stage}
+            </div>
+          </div>
+        )}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Stage</label>
-          <select name="stage" value={form.stage ?? STAGES[0]} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-            {STAGES.map((s) => (
-              <option key={s} value={s}>{s}</option>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Interviewer <span className="text-red-500">*</span></label>
+          {suggestedPanel && (
+            <p className="text-xs text-indigo-600 bg-indigo-50 border border-indigo-100 rounded px-2 py-1 mb-1">
+              Suggested from position: <span className="font-medium">{suggestedPanel}</span>
+            </p>
+          )}
+          <select
+            name="interviewer"
+            value={form.interviewer ?? ''}
+            onChange={handleChange}
+            disabled={!!initial?.feedback}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
+          >
+            <option value="">Select interviewer</option>
+            {employees.map((emp) => (
+              <option key={emp.id} value={emp.name}>{emp.name}</option>
             ))}
           </select>
+          {interviewerError && <p className="text-red-500 text-xs mt-1">{interviewerError}</p>}
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Interviewer</label>
-          <input name="interviewer" value={form.interviewer ?? ''} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">HR SPOC</label>
-          <select name="hr_spoc" value={form.hr_spoc ?? ''} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+          <label className="block text-sm font-medium text-gray-700 mb-1">HR SPOC <span className="text-red-500">*</span></label>
+          <select
+            name="hr_spoc"
+            value={form.hr_spoc ?? ''}
+            onChange={handleChange}
+            required
+            disabled={!!initial}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
+          >
             {HR_SPOC_OPTIONS.map((h) => (
               <option key={h} value={h}>{h}</option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Sourcing Date</label>
-          <input name="sourcing_date" type="date" value={form.sourcing_date ?? ''} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Interview Done Date</label>
-          <input name="interview_done_date" type="date" value={form.interview_done_date ?? ''} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Offer Release Date</label>
-          <input name="offer_release_date" type="date" value={form.offer_release_date ?? ''} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Expected Joining Date</label>
-          <input name="expected_joining_date" type="date" value={form.expected_joining_date ?? ''} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Joined Date</label>
-          <input name="joined_date" type="date" value={form.joined_date ?? ''} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
-        </div>
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Interviewer Feedback</label>
-          <textarea name="interviewer_feedback" value={form.interviewer_feedback ?? ''} onChange={handleChange} rows={3} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
         </div>
       </div>
 

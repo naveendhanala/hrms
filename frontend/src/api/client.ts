@@ -18,9 +18,15 @@ export async function apiFetch<T = unknown>(
 ): Promise<T> {
   const isGet = !options.method || options.method === 'GET';
 
-  // Any mutation busts the entire cache so re-fetches after creates/edits/deletes
-  // always see fresh data.
-  if (!isGet) _cache.clear();
+  // Bust only cache entries under the same API module (e.g. /api/ats),
+  // so unrelated modules (payroll, attendance, lms) stay cached.
+  if (!isGet) {
+    const parts = path.split('/');
+    const prefix = parts.slice(0, 3).join('/'); // e.g. "/api/ats"
+    for (const key of _cache.keys()) {
+      if (key.startsWith(prefix)) _cache.delete(key);
+    }
+  }
 
   if (isGet) {
     const hit = _cache.get(path);

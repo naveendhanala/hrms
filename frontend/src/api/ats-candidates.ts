@@ -8,6 +8,17 @@ export function listCandidates(params?: Record<string, string>) {
   return apiFetch<Candidate[]>(`${BASE}${qs}`);
 }
 
+export interface CandidatePage {
+  data: Candidate[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export function listCandidatesPaged(params: Record<string, string>) {
+  return apiFetch<CandidatePage>(`${BASE}?${new URLSearchParams(params).toString()}`);
+}
+
 export function createCandidate(data: Partial<Candidate>) {
   return apiFetch<Candidate>(BASE, {
     method: 'POST',

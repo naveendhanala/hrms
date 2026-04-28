@@ -5,37 +5,47 @@ import { authenticateToken, requireRole, AuthRequest } from '../../middleware/au
 const router = Router();
 
 router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const courses = await db.query<any>('SELECT * FROM courses ORDER BY created_at DESC');
-
-  if (req.user?.role !== 'admin') {
-    const result = await Promise.all(courses.map(async (course: any) => {
-      const attempt = await db.queryOne(
-        'SELECT * FROM attempts WHERE course_id = ? AND user_id = ?',
-        [course.id, req.user!.id],
-      );
-      return { ...course, attempt: attempt || null };
-    }));
-    return res.json(result);
+  if (req.user?.role === 'admin') {
+    return res.json(await db.query<any>('SELECT * FROM courses ORDER BY created_at DESC'));
   }
 
-  res.json(courses);
+  // Single JOIN — eliminates N+1 per-course attempt lookup
+  const rows = await db.query<any>(
+    `SELECT c.*,
+            a.id AS _att_id, a.watched, a.score, a.total, a.answers, a.submitted_at, a.started_at
+     FROM courses c
+     LEFT JOIN attempts a ON a.course_id = c.id AND a.user_id = ?
+     ORDER BY c.created_at DESC`,
+    [req.user!.id],
+  );
+
+  const result = rows.map((row: any) => {
+    const { _att_id, watched, score, total, answers, submitted_at, started_at, ...course } = row;
+    return {
+      ...course,
+      attempt: _att_id
+        ? { id: _att_id, user_id: req.user!.id, course_id: course.id, watched, score, total, answers, submitted_at, started_at }
+        : null,
+    };
+  });
+
+  res.json(result);
 });
 
 router.get('/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
   const course = await db.queryOne('SELECT * FROM courses WHERE id = ?', [req.params.id]);
   if (!course) return res.status(404).json({ error: 'Course not found' });
 
-  const questions = req.user?.role === 'admin'
-    ? await db.query('SELECT * FROM questions WHERE course_id = ? ORDER BY order_index, id', [req.params.id])
-    : await db.query(
-        'SELECT id, course_id, question_text, option_a, option_b, option_c, option_d, order_index FROM questions WHERE course_id = ? ORDER BY order_index, id',
-        [req.params.id],
-      );
-
-  const attempt = await db.queryOne(
-    'SELECT * FROM attempts WHERE course_id = ? AND user_id = ?',
-    [req.params.id, req.user!.id],
-  );
+  // Questions and attempt are independent — fetch in parallel
+  const [questions, attempt] = await Promise.all([
+    req.user?.role === 'admin'
+      ? db.query('SELECT * FROM questions WHERE course_id = ? ORDER BY order_index, id', [req.params.id])
+      : db.query(
+          'SELECT id, course_id, question_text, option_a, option_b, option_c, option_d, order_index FROM questions WHERE course_id = ? ORDER BY order_index, id',
+          [req.params.id],
+        ),
+    db.queryOne('SELECT * FROM attempts WHERE course_id = ? AND user_id = ?', [req.params.id, req.user!.id]),
+  ]);
 
   res.json({ ...(course as any), questions, attempt: attempt || null });
 });

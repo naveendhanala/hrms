@@ -11,16 +11,30 @@ interface CandidateInfo {
   department: string;
 }
 
-type Step = 'lookup' | 'feedback' | 'done';
+type Step = 'lookup' | 'interview_check' | 'no_interview' | 'feedback' | 'done';
+
+type NoInterviewReason = 'not_responding' | 'resume_mismatch';
+
+const NO_INTERVIEW_OPTIONS: { value: NoInterviewReason; label: string }[] = [
+  { value: 'not_responding',  label: 'Candidate Not Responding' },
+  { value: 'resume_mismatch', label: 'Resume does not align with job' },
+];
 
 export default function FeedbackPage() {
   const [step, setStep] = useState<Step>('lookup');
   const [mobile, setMobile] = useState('');
   const [candidate, setCandidate] = useState<CandidateInfo | null>(null);
+
+  // Part 1 state
+  const [interviewCompleted, setInterviewCompleted] = useState<boolean | null>(null);
+  const [noInterviewReason, setNoInterviewReason] = useState<NoInterviewReason | null>(null);
+
+  // Part 2 (interview completed) state
   const [interviewer, setInterviewer] = useState('');
   const [result, setResult] = useState<'accepted' | 'rejected'>('accepted');
   const [rejectReason, setRejectReason] = useState('');
   const [remarks, setRemarks] = useState('');
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -31,9 +45,37 @@ export default function FeedbackPage() {
     try {
       const data = await apiFetch<CandidateInfo>(`/api/ats/feedback/lookup?mobile=${encodeURIComponent(mobile)}`);
       setCandidate(data);
-      setStep('feedback');
+      setStep('interview_check');
     } catch {
       setError('Candidate not found with this mobile number.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInterviewCheck = () => {
+    if (interviewCompleted === null) return;
+    if (interviewCompleted) {
+      setStep('feedback');
+    } else {
+      setNoInterviewReason(null);
+      setStep('no_interview');
+    }
+  };
+
+  const handleNoInterviewSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!noInterviewReason) return;
+    setError('');
+    setLoading(true);
+    try {
+      await apiFetch('/api/ats/feedback/incomplete', {
+        method: 'POST',
+        body: JSON.stringify({ mobile, reason: noInterviewReason }),
+      });
+      setStep('done');
+    } catch {
+      setError('Failed to submit. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -62,6 +104,19 @@ export default function FeedbackPage() {
     }
   };
 
+  const handleReset = () => {
+    setStep('lookup');
+    setMobile('');
+    setCandidate(null);
+    setInterviewCompleted(null);
+    setNoInterviewReason(null);
+    setInterviewer('');
+    setResult('accepted');
+    setRejectReason('');
+    setRemarks('');
+    setError('');
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50">
       <div className="w-full max-w-lg">
@@ -75,6 +130,7 @@ export default function FeedbackPage() {
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
           )}
 
+          {/* ── Step 1: Lookup ── */}
           {step === 'lookup' && (
             <form onSubmit={handleLookup} className="space-y-4">
               <div>
@@ -97,11 +153,98 @@ export default function FeedbackPage() {
             </form>
           )}
 
+          {/* ── Step 2: Is interview completed? ── */}
+          {step === 'interview_check' && candidate && (
+            <div className="space-y-6">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm font-medium text-gray-900">{candidate.name}</p>
+                <p className="text-xs text-gray-500">{candidate.project} · {candidate.role} ({candidate.job_id})</p>
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-gray-800 mb-3">Is Interview Completed?</p>
+                <div className="flex gap-4">
+                  {([true, false] as const).map((val) => (
+                    <label
+                      key={String(val)}
+                      className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer transition-colors ${
+                        interviewCompleted === val
+                          ? val ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-red-400 bg-red-50 text-red-700'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="interview_completed"
+                        className="sr-only"
+                        checked={interviewCompleted === val}
+                        onChange={() => setInterviewCompleted(val)}
+                      />
+                      <span className="text-sm font-medium">{val ? 'Yes' : 'No'}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={handleInterviewCheck}
+                disabled={interviewCompleted === null}
+                className="w-full py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-40"
+              >
+                Continue
+              </button>
+            </div>
+          )}
+
+          {/* ── Step 3a: Interview not completed — reason ── */}
+          {step === 'no_interview' && candidate && (
+            <form onSubmit={handleNoInterviewSubmit} className="space-y-6">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm font-medium text-gray-900">{candidate.name}</p>
+                <p className="text-xs text-gray-500">{candidate.project} · {candidate.role} ({candidate.job_id})</p>
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-gray-800 mb-3">Reason?</p>
+                <div className="space-y-2">
+                  {NO_INTERVIEW_OPTIONS.map((opt) => (
+                    <label
+                      key={opt.value}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 cursor-pointer transition-colors ${
+                        noInterviewReason === opt.value
+                          ? 'border-amber-400 bg-amber-50 text-amber-800'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="no_interview_reason"
+                        className="w-4 h-4 accent-amber-500"
+                        checked={noInterviewReason === opt.value}
+                        onChange={() => setNoInterviewReason(opt.value)}
+                      />
+                      <span className="text-sm font-medium">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={!noInterviewReason || loading}
+                className="w-full py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-40"
+              >
+                {loading ? 'Submitting...' : 'Submit'}
+              </button>
+            </form>
+          )}
+
+          {/* ── Step 3b: Interview completed — feedback form ── */}
           {step === 'feedback' && candidate && (
             <>
               <div className="mb-6 p-4 bg-gray-50 rounded-lg">
                 <p className="text-sm font-medium text-gray-900">{candidate.name}</p>
-                <p className="text-xs text-gray-500">{candidate.project} - {candidate.role} ({candidate.job_id})</p>
+                <p className="text-xs text-gray-500">{candidate.project} · {candidate.role} ({candidate.job_id})</p>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -163,23 +306,16 @@ export default function FeedbackPage() {
             </>
           )}
 
+          {/* ── Done ── */}
           {step === 'done' && (
             <div className="text-center py-8">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-green-600 text-3xl">&#10003;</span>
               </div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Feedback Submitted</h2>
-              <p className="text-gray-500 mb-6">Thank you for your interview feedback.</p>
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Submitted</h2>
+              <p className="text-gray-500 mb-6">Thank you for your feedback.</p>
               <button
-                onClick={() => {
-                  setStep('lookup');
-                  setMobile('');
-                  setCandidate(null);
-                  setInterviewer('');
-                  setResult('accepted');
-                  setRejectReason('');
-                  setRemarks('');
-                }}
+                onClick={handleReset}
                 className="px-6 py-2 text-sm font-medium text-emerald-700 bg-emerald-100 rounded-lg hover:bg-emerald-200"
               >
                 Submit Another

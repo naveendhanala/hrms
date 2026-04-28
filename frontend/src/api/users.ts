@@ -45,6 +45,9 @@ export interface EmployeeUpdate {
 export const getEmployees = () =>
   apiFetch<Employee[]>('/api/users');
 
+export const getDirectory = () =>
+  apiFetch<{ id: number; name: string; designation: string; role: string }[]>('/api/users/directory');
+
 export const getManagers = () =>
   apiFetch<Manager[]>('/api/users/managers');
 

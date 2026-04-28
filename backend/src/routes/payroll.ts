@@ -164,14 +164,8 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
   const advMap      = new Map(allAdv.map((r: any) => [r.employee_id,  Number(r.total)]));
   const tdsMap      = new Map(allTds.map((r: any) => [r.employee_id,  r]));
 
-  const insertSql = `
-    INSERT INTO payroll_records
-      (run_id, employee_id, basic_salary, allowances, meal_allowance, conveyance_allowance, deductions,
-       working_days, present_days, leave_days, absent_days, lop_days, lop_deduction, prof_tax, advance_deduction,
-       tds_deduction, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-
+  // Build all row values in-memory, then insert in one statement
+  const rowValues: unknown[] = [];
   for (const emp of employees) {
     const att         = attMap.get(emp.id);
     const presentDays = Number(att?.present_days ?? 0);
@@ -197,14 +191,29 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
       grossSalary, regime, month, year, emp.date_of_joining, tdsAlreadyDeducted, processedMonthsInFY,
     );
 
-    await db.run(insertSql, [
+    rowValues.push(
       runId, emp.id, emp.basic_salary, totalAllowances,
       emp.meal_allowance, emp.conveyance_allowance,
       emp.deductions,
       totalDays, presentDays, leaveDays, absentDays, lopDays, lopDeduction, profTax, advanceDeduction,
       monthlyTds,
       now, now,
-    ]);
+    );
+  }
+
+  if (employees.length > 0) {
+    const cols = 18;
+    const placeholders = employees
+      .map((_, i) => `(${Array.from({ length: cols }, (__, j) => `?`).join(', ')})`)
+      .join(', ');
+    await db.run(
+      `INSERT INTO payroll_records
+        (run_id, employee_id, basic_salary, allowances, meal_allowance, conveyance_allowance, deductions,
+         working_days, present_days, leave_days, absent_days, lop_days, lop_deduction, prof_tax, advance_deduction,
+         tds_deduction, created_at, updated_at)
+       VALUES ${placeholders}`,
+      rowValues,
+    );
   }
 }
 
@@ -277,21 +286,28 @@ router.patch('/:runId/status', authenticateToken, requireRole('admin', 'hr'), as
 
   // Apply advance recovery when transitioning draft → processed
   if (status === 'processed' && run.status === 'draft') {
-    const records = await db.query<any>('SELECT employee_id, advance_deduction FROM payroll_records WHERE run_id = ?', [req.params.runId]);
-    for (const record of records) {
-      if (Number(record.advance_deduction) <= 0) continue;
+    const records = await db.query<any>(
+      'SELECT employee_id, advance_deduction FROM payroll_records WHERE run_id = ? AND advance_deduction > 0',
+      [req.params.runId],
+    );
+
+    if (records.length > 0) {
+      const empIds = records.map((r: any) => r.employee_id);
+      // Single query for all active advances across all affected employees
       const advances = await db.query<any>(
-        `SELECT * FROM employee_advances WHERE employee_id = ? AND status = 'active'`,
-        [record.employee_id],
+        `SELECT * FROM employee_advances WHERE employee_id = ANY($1::int[]) AND status = 'active'`,
+        [empIds],
       );
-      for (const adv of advances) {
+
+      // Run all updates in parallel
+      await Promise.all(advances.map((adv: any) => {
         const newRecovered = Math.min(Number(adv.recovered) + Number(adv.monthly_amt), Number(adv.amount));
         const newStatus = newRecovered >= Number(adv.amount) ? 'closed' : 'active';
-        await db.run(
+        return db.run(
           'UPDATE employee_advances SET recovered = ?, status = ?, updated_at = ? WHERE id = ?',
           [newRecovered, newStatus, now, adv.id],
         );
-      }
+      }));
     }
   }
 

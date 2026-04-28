@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { createPosition } from '../../../api/ats-positions';
 import { getDeptRoles } from '../../../api/ats-config';
-import { me } from '../../../api/auth';
 import type { Position } from '../../../types';
 import type { DeptRole } from '../../../api/ats-config';
+import { HR_SPOC_OPTIONS } from '../../../types';
 import EmployeeMultiSelect from '../../shared/EmployeeMultiSelect';
 
-const DEFAULT_HR_SPOC = 'Ravindra Varma';
+const countWords = (text: string) => text.trim().split(/\s+/).filter(Boolean).length;
 
 const EMPTY = (): Partial<Position> => ({
   project: '',
@@ -18,15 +18,13 @@ const EMPTY = (): Partial<Position> => ({
   total_req: 1,
   required_by_date: '',
   interview_panel: '',
-  hr_spoc: DEFAULT_HR_SPOC,
+  hr_spoc: HR_SPOC_OPTIONS[0] as string,
   job_description: '',
 });
 
-const countWords = (text: string) => text.trim().split(/\s+/).filter(Boolean).length;
-
 interface Props { onSuccess?: () => void; }
 
-export default function PositionRequestForm({ onSuccess }: Props) {
+export default function BusinessHeadRequestForm({ onSuccess }: Props) {
   const [form, setForm] = useState<Partial<Position>>(EMPTY());
   const [deptRoles, setDeptRoles] = useState<DeptRole[]>([]);
   const [saving, setSaving] = useState(false);
@@ -34,15 +32,10 @@ export default function PositionRequestForm({ onSuccess }: Props) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    me().then((user) => {
-      setForm((prev) => ({ ...prev, project: user.project ?? '' }));
-    }).catch(console.error);
-
     getDeptRoles().then(setDeptRoles).catch(console.error);
   }, []);
 
-  const selectedDept = deptRoles.find((d) => d.department === form.department);
-  const availableRoles = selectedDept?.roles ?? [];
+  const availableRoles = deptRoles.find((d) => d.department === form.department)?.roles ?? [];
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -66,12 +59,12 @@ export default function PositionRequestForm({ onSuccess }: Props) {
     setError('');
     setSuccess(false);
     try {
-      await createPosition({ ...form, approval_status: 'pending' });
+      await createPosition({ ...form, approval_status: 'approved' });
       setSuccess(true);
-      setForm((prev) => ({ ...EMPTY(), project: prev.project }));
+      setForm(EMPTY());
       onSuccess?.();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to submit request');
+      setError(err instanceof Error ? err.message : 'Failed to create position');
     } finally {
       setSaving(false);
     }
@@ -79,11 +72,11 @@ export default function PositionRequestForm({ onSuccess }: Props) {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">Request New Position</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mb-6">New Position</h2>
 
       {success && (
         <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
-          Position request submitted successfully! Awaiting Business Head approval.
+          Position created and approved successfully.
         </div>
       )}
       {error && (
@@ -92,16 +85,11 @@ export default function PositionRequestForm({ onSuccess }: Props) {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
-            <input
-              name="project"
-              value={form.project ?? ''}
-              disabled
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-500 cursor-not-allowed"
-            />
+            <input name="project" value={form.project ?? ''} onChange={handleChange} required className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nature of Work</label>
@@ -111,18 +99,14 @@ export default function PositionRequestForm({ onSuccess }: Props) {
             <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
             <select name="department" value={form.department ?? ''} onChange={handleChange} required className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
               <option value="">Select department</option>
-              {deptRoles.map((d) => (
-                <option key={d.department} value={d.department}>{d.department}</option>
-              ))}
+              {deptRoles.map((d) => <option key={d.department} value={d.department}>{d.department}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
             <select name="role" value={form.role ?? ''} onChange={handleChange} required disabled={!form.department} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100">
               <option value="">Select role</option>
-              {availableRoles.map((r) => (
-                <option key={r.name} value={r.name}>{r.name}</option>
-              ))}
+              {availableRoles.map((r) => <option key={r.name} value={r.name}>{r.name}</option>)}
             </select>
           </div>
           <div>
@@ -134,6 +118,12 @@ export default function PositionRequestForm({ onSuccess }: Props) {
             <input name="required_by_date" type="date" value={form.required_by_date ?? ''} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">HR SPOC</label>
+            <select name="hr_spoc" value={form.hr_spoc ?? ''} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+              {HR_SPOC_OPTIONS.map((h) => <option key={h} value={h}>{h}</option>)}
+            </select>
+          </div>
+          <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">Interview Panel</label>
             <EmployeeMultiSelect
               value={form.interview_panel ?? ''}
@@ -142,7 +132,7 @@ export default function PositionRequestForm({ onSuccess }: Props) {
           </div>
         </div>
 
-        <div className="mt-4">
+        <div>
           <div className="flex items-baseline justify-between mb-1">
             <label className="block text-sm font-medium text-gray-700">Job Description</label>
             <span className={`text-xs ${countWords(form.job_description ?? '') < 50 ? 'text-red-500' : 'text-green-600'}`}>
@@ -159,13 +149,13 @@ export default function PositionRequestForm({ onSuccess }: Props) {
           />
         </div>
 
-        <div className="flex justify-end pt-6">
+        <div className="flex justify-end pt-2">
           <button
             type="submit"
             disabled={saving}
-            className="px-6 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+            className="px-6 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
           >
-            {saving ? 'Submitting...' : 'Submit Request'}
+            {saving ? 'Creating...' : 'Create & Approve'}
           </button>
         </div>
       </form>

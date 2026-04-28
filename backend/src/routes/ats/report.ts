@@ -7,7 +7,7 @@ const router = Router();
 const stages = ['Screening', 'Technical Round 1', 'Technical Round 2', 'HR Round', 'Offer', 'Joined', 'Rejected'];
 
 const stageMapping: Record<string, string[]> = {
-  'Screening':         ['Profile shared with interviewer'],
+  'Screening':         ['Interview'],
   'Technical Round 1': ['Technical Round 1'],
   'Technical Round 2': ['Technical Round 2'],
   'HR Round':          ['HR Round'],
@@ -19,7 +19,7 @@ const stageMapping: Record<string, string[]> = {
 router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   const { status, required_by_date, hr_spoc, department } = req.query;
 
-  let where = 'WHERE 1=1';
+  let where = `WHERE (p.approval_status IS NULL OR p.approval_status = '' OR p.approval_status = 'approved')`;
   const params: any[] = [];
 
   if (status)           { where += ' AND p.status = ?';            params.push(status); }
