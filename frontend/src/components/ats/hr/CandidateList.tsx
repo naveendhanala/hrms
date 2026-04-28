@@ -90,6 +90,7 @@ export default function CandidateList() {
   // Request Approval state
   const [requestingApproval, setRequestingApproval] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [createError, setCreateError] = useState('');
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -138,10 +139,15 @@ export default function CandidateList() {
   };
 
   const handleCreate = async (data: Partial<Candidate>) => {
-    await createCandidate(data);
-    setShowForm(false);
-    load(1);
-    setPage(1);
+    try {
+      setCreateError('');
+      await createCandidate(data);
+      setShowForm(false);
+      load(1);
+      setPage(1);
+    } catch (err: any) {
+      setCreateError(err.message || 'Failed to add candidate.');
+    }
   };
 
   const handleUpdate = async (data: Partial<Candidate>) => {
@@ -238,7 +244,7 @@ export default function CandidateList() {
     setShowForm(true);
   };
 
-  const closeModal = () => { setShowForm(false); setEditing(null); };
+  const closeModal = () => { setShowForm(false); setEditing(null); setCreateError(''); };
 
   // Derived state for modal sections
   const interviewDone   = !!(editing?.feedback || editing?.interview_done_date);
@@ -367,6 +373,11 @@ export default function CandidateList() {
       )}
 
       <Modal open={showForm} onClose={closeModal} title={editing ? 'Edit Candidate' : 'Add Candidate'} size="lg">
+        {createError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            {createError}
+          </div>
+        )}
         <CandidateForm
           initial={editing}
           onSubmit={editing ? handleUpdate : handleCreate}

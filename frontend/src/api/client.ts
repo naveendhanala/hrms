@@ -3,7 +3,12 @@ export class ApiError extends Error {
   body: unknown;
 
   constructor(status: number, body: unknown) {
-    super(typeof body === 'object' && body && 'message' in body ? (body as { message: string }).message : `API error ${status}`);
+    const b = body as Record<string, unknown>;
+    super(
+      typeof b === 'object' && b
+        ? String(b.message ?? b.error ?? `API error ${status}`)
+        : `API error ${status}`
+    );
     this.status = status;
     this.body = body;
   }

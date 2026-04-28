@@ -111,6 +111,9 @@ async function _runMigrations(): Promise<void> {
     pool.query(`ALTER TABLE candidates ADD COLUMN IF NOT EXISTS competency_feedback TEXT NOT NULL DEFAULT ''`),
     pool.query(`ALTER TABLE candidates ADD COLUMN IF NOT EXISTS offered_ctc TEXT NOT NULL DEFAULT ''`),
     pool.query(`ALTER TABLE candidates ADD COLUMN IF NOT EXISTS offer_notes TEXT NOT NULL DEFAULT ''`),
+    pool.query(`ALTER TABLE candidates ALTER COLUMN alternate_mobile DROP NOT NULL`),
+    pool.query(`ALTER TABLE candidates ALTER COLUMN candidate_current_role DROP NOT NULL`),
+    pool.query(`ALTER TABLE candidates DROP CONSTRAINT IF EXISTS candidates_mobile_key`),
   ]);
 
   // Seed default dept-roles if table is empty
@@ -237,11 +240,11 @@ async function _init(): Promise<void> {
     CREATE TABLE IF NOT EXISTS candidates (
       id                     TEXT PRIMARY KEY,
       name                   TEXT NOT NULL,
-      mobile                 TEXT NOT NULL UNIQUE,
+      mobile                 TEXT NOT NULL,
       email                  TEXT,
-      alternate_mobile       TEXT NOT NULL DEFAULT '',
+      alternate_mobile       TEXT,
       job_id                 TEXT NOT NULL,
-      candidate_current_role TEXT NOT NULL DEFAULT '',
+      candidate_current_role TEXT,
       stage                  TEXT NOT NULL DEFAULT 'Interview',
       interviewer            TEXT NOT NULL,
       feedback               TEXT NOT NULL DEFAULT '',

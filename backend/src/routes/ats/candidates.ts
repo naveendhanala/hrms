@@ -70,8 +70,28 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   const position = await db.queryOne('SELECT id FROM positions WHERE job_id = ?', [job_id]);
   if (!position) return res.status(400).json({ error: 'Invalid job_id: position not found' });
 
-  const existing = await db.queryOne('SELECT id FROM candidates WHERE mobile = ?', [mobile]);
-  if (existing) return res.status(409).json({ error: 'Candidate with this mobile number already exists' });
+  const existingRecords = await db.query<any>('SELECT * FROM candidates WHERE mobile = ?', [mobile]);
+
+  const ACTIVE_STAGES = ['Interview', 'Offer Negotiation', 'Offer Approval Pending', 'Offer Released'];
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+  for (const rec of existingRecords) {
+    if (ACTIVE_STAGES.includes(rec.stage)) {
+      return res.status(409).json({
+        error: `This candidate is currently active in the pipeline for ${rec.job_id} (${rec.stage}).`,
+      });
+    }
+    if (rec.stage === 'Rejected' && rec.interview_done_date) {
+      const rejectedOn = new Date(rec.interview_done_date);
+      if (rejectedOn > sixMonthsAgo) {
+        const formatted = rejectedOn.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        return res.status(409).json({
+          error: `The candidate has been rejected on ${formatted}. We need to wait for 6 months to process the same candidate again.`,
+        });
+      }
+    }
+  }
 
   const id = uuidv4();
   const now = new Date().toISOString();
@@ -79,7 +99,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
 
   await db.run(
     `INSERT INTO candidates (id, name, mobile, alternate_mobile, email, job_id, interviewer, hr_spoc, candidate_current_role, current_company, experience, current_ctc, expected_ctc, notice_period, remarks, stage, sourcing_date, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [id, name, mobile, alternate_mobile || null, email || null, job_id, interviewer, hr_spoc,
      candidate_current_role || null, current_company || null, experience || null, current_ctc || null,
      expected_ctc || null, notice_period || null, remarks || null,
