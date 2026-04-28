@@ -423,7 +423,7 @@ export default function AttendancePage() {
           } finally { setMarkSaving(null); }
         };
 
-        const handleDownloadExcel = () => {
+        const handleDownloadExcel = async () => {
           const daysInMonthN = new Date(year, month, 0).getDate();
           const daysArr      = Array.from({ length: daysInMonthN }, (_, i) => i + 1);
           const monthPrefix  = `${year}-${String(month).padStart(2, '0')}`;
