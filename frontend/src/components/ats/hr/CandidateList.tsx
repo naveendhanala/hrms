@@ -152,10 +152,15 @@ export default function CandidateList() {
 
   const handleUpdate = async (data: Partial<Candidate>) => {
     if (!editing) return;
-    await updateCandidate(editing.id, data);
-    setEditing(null);
-    setShowForm(false);
-    load();
+    try {
+      setCreateError('');
+      await updateCandidate(editing.id, data);
+      setEditing(null);
+      setShowForm(false);
+      load();
+    } catch (err: any) {
+      setCreateError(err.message || 'Failed to update candidate.');
+    }
   };
 
   const handleExport = async () => {

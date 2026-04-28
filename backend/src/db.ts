@@ -114,6 +114,7 @@ async function _runMigrations(): Promise<void> {
     pool.query(`ALTER TABLE candidates ALTER COLUMN alternate_mobile DROP NOT NULL`),
     pool.query(`ALTER TABLE candidates ALTER COLUMN candidate_current_role DROP NOT NULL`),
     pool.query(`ALTER TABLE candidates DROP CONSTRAINT IF EXISTS candidates_mobile_key`),
+    pool.query(`ALTER TABLE candidates DROP COLUMN IF EXISTS offer_approval_status`),
   ]);
 
   // Seed default dept-roles if table is empty
@@ -260,7 +261,6 @@ async function _init(): Promise<void> {
       expected_ctc           TEXT,
       notice_period          TEXT,
       remarks                TEXT,
-      offer_approval_status  TEXT NOT NULL DEFAULT '',
       created_at             TEXT NOT NULL DEFAULT '',
       updated_at             TEXT NOT NULL DEFAULT ''
     )

@@ -275,7 +275,7 @@ export default function InterviewerFeedbackTab({ onPendingCount }: { onPendingCo
 
           {done.length > 0 && (
             <section>
-              <h2 className="text-base font-semibold text-gray-700 mb-3">Feedback Submitted ({done.length})</h2>
+              <h2 className="text-base font-semibold text-gray-700 mb-3">Feedback Submitted <span className="text-gray-400 font-normal text-sm">(recent {done.length})</span></h2>
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <table className="min-w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-200">

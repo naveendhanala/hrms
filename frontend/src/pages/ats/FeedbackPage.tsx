@@ -12,28 +12,83 @@ interface CandidateInfo {
 }
 
 type Step = 'lookup' | 'interview_check' | 'no_interview' | 'feedback' | 'done';
-
 type NoInterviewReason = 'not_responding' | 'resume_mismatch';
+type Rating = 'Poor' | 'Average' | 'Good' | 'Excellent';
+
+const RATINGS: Rating[] = ['Poor', 'Average', 'Good', 'Excellent'];
+const FUNCTIONAL_ITEMS = ['Job Knowledge', 'Hands on exposure', 'Knowledge on industry trends'] as const;
+const BEHAVIORAL_ITEMS = ['Analytical skills', 'Communication skills', 'Leadership skills'] as const;
+type FunctionalKey = (typeof FUNCTIONAL_ITEMS)[number];
+type BehavioralKey = (typeof BEHAVIORAL_ITEMS)[number];
 
 const NO_INTERVIEW_OPTIONS: { value: NoInterviewReason; label: string }[] = [
   { value: 'not_responding',  label: 'Candidate Not Responding' },
   { value: 'resume_mismatch', label: 'Resume does not align with job' },
 ];
 
+function CompetencyTable<T extends string>({
+  title,
+  items,
+  ratings,
+  onChange,
+}: {
+  title: string;
+  items: readonly T[];
+  ratings: Partial<Record<T, Rating>>;
+  onChange: (item: T, rating: Rating) => void;
+}) {
+  return (
+    <div>
+      <p className="text-sm font-semibold text-gray-800 mb-2">
+        {title} <span className="text-red-500">*</span>
+      </p>
+      <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <table className="min-w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 w-48"></th>
+              {RATINGS.map((r) => (
+                <th key={r} className="px-2 py-2 text-center text-xs font-semibold text-gray-500">{r}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {items.map((item) => (
+              <tr key={item} className="hover:bg-gray-50">
+                <td className="px-3 py-2.5 text-gray-700 font-medium text-xs">{item}</td>
+                {RATINGS.map((r) => (
+                  <td key={r} className="px-2 py-2.5 text-center">
+                    <input
+                      type="radio"
+                      name={item}
+                      checked={ratings[item] === r}
+                      onChange={() => onChange(item, r)}
+                      className="w-4 h-4 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function FeedbackPage() {
   const [step, setStep] = useState<Step>('lookup');
   const [mobile, setMobile] = useState('');
   const [candidate, setCandidate] = useState<CandidateInfo | null>(null);
 
-  // Part 1 state
   const [interviewCompleted, setInterviewCompleted] = useState<boolean | null>(null);
   const [noInterviewReason, setNoInterviewReason] = useState<NoInterviewReason | null>(null);
 
-  // Part 2 (interview completed) state
-  const [interviewer, setInterviewer] = useState('');
   const [result, setResult] = useState<'accepted' | 'rejected'>('accepted');
   const [rejectReason, setRejectReason] = useState('');
   const [remarks, setRemarks] = useState('');
+  const [functionalRatings, setFunctionalRatings] = useState<Partial<Record<FunctionalKey, Rating>>>({});
+  const [behavioralRatings, setBehavioralRatings] = useState<Partial<Record<BehavioralKey, Rating>>>({});
 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -84,16 +139,33 @@ export default function FeedbackPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!remarks.trim()) {
+      setError('Remarks is required.');
+      return;
+    }
+    const missingFunctional = FUNCTIONAL_ITEMS.find((k) => !functionalRatings[k]);
+    if (missingFunctional) {
+      setError(`Please rate "${missingFunctional}" in functional competencies.`);
+      return;
+    }
+    const missingBehavioral = BEHAVIORAL_ITEMS.find((k) => !behavioralRatings[k]);
+    if (missingBehavioral) {
+      setError(`Please rate "${missingBehavioral}" in behavioral competencies.`);
+      return;
+    }
+
     setLoading(true);
     try {
       await apiFetch('/api/ats/feedback', {
         method: 'POST',
         body: JSON.stringify({
           mobile,
-          interviewer,
           result,
           reject_reason: result === 'rejected' ? rejectReason : undefined,
           remarks,
+          functional_competencies: functionalRatings,
+          behavioral_competencies: behavioralRatings,
         }),
       });
       setStep('done');
@@ -110,16 +182,17 @@ export default function FeedbackPage() {
     setCandidate(null);
     setInterviewCompleted(null);
     setNoInterviewReason(null);
-    setInterviewer('');
     setResult('accepted');
     setRejectReason('');
     setRemarks('');
+    setFunctionalRatings({});
+    setBehavioralRatings({});
     setError('');
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50">
-      <div className="w-full max-w-lg">
+      <div className="w-full max-w-2xl">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Interview Feedback</h1>
           <p className="text-gray-500 mt-1">Submit your interview feedback</p>
@@ -229,81 +302,100 @@ export default function FeedbackPage() {
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={!noInterviewReason || loading}
-                className="w-full py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-40"
-              >
-                {loading ? 'Submitting...' : 'Submit'}
-              </button>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setStep('interview_check')} className="flex-1 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  disabled={!noInterviewReason || loading}
+                  className="flex-1 py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-40"
+                >
+                  {loading ? 'Submitting...' : 'Submit'}
+                </button>
+              </div>
             </form>
           )}
 
           {/* ── Step 3b: Interview completed — feedback form ── */}
           {step === 'feedback' && candidate && (
-            <>
-              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="p-4 bg-gray-50 rounded-lg">
                 <p className="text-sm font-medium text-gray-900">{candidate.name}</p>
                 <p className="text-xs text-gray-500">{candidate.project} · {candidate.role} ({candidate.job_id})</p>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Your Name (Interviewer)</label>
-                  <input
-                    value={interviewer}
-                    onChange={(e) => setInterviewer(e.target.value)}
-                    required
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                  />
+              <CompetencyTable
+                title="Assessment of functional / technical competencies"
+                items={FUNCTIONAL_ITEMS}
+                ratings={functionalRatings}
+                onChange={(item, rating) => setFunctionalRatings((prev) => ({ ...prev, [item]: rating }))}
+              />
+
+              <CompetencyTable
+                title="Assessment of behavioral competencies"
+                items={BEHAVIORAL_ITEMS}
+                ratings={behavioralRatings}
+                onChange={(item, rating) => setBehavioralRatings((prev) => ({ ...prev, [item]: rating }))}
+              />
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Result <span className="text-red-500">*</span></label>
+                <div className="flex gap-6">
+                  {(['accepted', 'rejected'] as const).map((r) => (
+                    <label key={r} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="result"
+                        value={r}
+                        checked={result === r}
+                        onChange={() => setResult(r)}
+                        className="text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span className="text-sm capitalize font-medium">{r}</span>
+                    </label>
+                  ))}
                 </div>
+              </div>
+
+              {result === 'rejected' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Result</label>
-                  <div className="flex gap-4">
-                    {(['accepted', 'rejected'] as const).map((r) => (
-                      <label key={r} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="result"
-                          value={r}
-                          checked={result === r}
-                          onChange={() => setResult(r)}
-                          className="text-emerald-600 focus:ring-emerald-500"
-                        />
-                        <span className="text-sm capitalize">{r}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                {result === 'rejected' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Rejection Reason</label>
-                    <textarea
-                      value={rejectReason}
-                      onChange={(e) => setRejectReason(e.target.value)}
-                      rows={2}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    />
-                  </div>
-                )}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Rejection Reason</label>
                   <textarea
-                    value={remarks}
-                    onChange={(e) => setRemarks(e.target.value)}
-                    rows={3}
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    rows={2}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   />
                 </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Remarks <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  rows={3}
+                  placeholder="Strengths, areas of improvement, overall impression…"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setStep('interview_check')} className="flex-1 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+                  Back
+                </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                  className="flex-1 py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
                 >
                   {loading ? 'Submitting...' : 'Submit Feedback'}
                 </button>
-              </form>
-            </>
+              </div>
+            </form>
           )}
 
           {/* ── Done ── */}

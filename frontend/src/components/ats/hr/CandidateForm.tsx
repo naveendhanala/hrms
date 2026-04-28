@@ -32,6 +32,8 @@ export default function CandidateForm({ initial, onSubmit, onCancel }: Props) {
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [interviewerError, setInterviewerError] = useState('');
+  const [mobileError, setMobileError] = useState('');
+  const [altMobileError, setAltMobileError] = useState('');
 
   useEffect(() => {
     listPositions().then(setPositions).catch(console.error);
@@ -55,11 +57,29 @@ export default function CandidateForm({ initial, onSubmit, onCancel }: Props) {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+
+    if (name === 'mobile' || name === 'alternate_mobile') {
+      const digits = value.replace(/\D/g, '').slice(0, 10);
+      setForm((prev) => ({ ...prev, [name]: digits }));
+      const setErr = name === 'mobile' ? setMobileError : setAltMobileError;
+      if (digits.length > 0 && digits.length < 10) setErr('Must be exactly 10 digits');
+      else setErr('');
+      return;
+    }
+
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if ((form.mobile ?? '').length !== 10) {
+      setMobileError('Must be exactly 10 digits');
+      return;
+    }
+    if (form.alternate_mobile && form.alternate_mobile.length !== 10) {
+      setAltMobileError('Must be exactly 10 digits');
+      return;
+    }
     if (!form.interviewer?.trim()) {
       setInterviewerError('Please select an interviewer.');
       return;
@@ -87,11 +107,30 @@ export default function CandidateForm({ initial, onSubmit, onCancel }: Props) {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Mobile <span className="text-red-500">*</span></label>
-          <input name="mobile" value={form.mobile ?? ''} onChange={handleChange} required className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+          <input
+            name="mobile"
+            value={form.mobile ?? ''}
+            onChange={handleChange}
+            required
+            inputMode="numeric"
+            maxLength={10}
+            placeholder="10-digit number"
+            className={`w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${mobileError ? 'border-red-400' : 'border-gray-300'}`}
+          />
+          {mobileError && <p className="text-red-500 text-xs mt-1">{mobileError}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Alternate Mobile</label>
-          <input name="alternate_mobile" value={form.alternate_mobile ?? ''} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+          <input
+            name="alternate_mobile"
+            value={form.alternate_mobile ?? ''}
+            onChange={handleChange}
+            inputMode="numeric"
+            maxLength={10}
+            placeholder="10-digit number"
+            className={`w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${altMobileError ? 'border-red-400' : 'border-gray-300'}`}
+          />
+          {altMobileError && <p className="text-red-500 text-xs mt-1">{altMobileError}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Job ID <span className="text-red-500">*</span></label>

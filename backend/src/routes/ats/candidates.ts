@@ -67,12 +67,20 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
     return res.status(400).json({ error: 'name, mobile, job_id, interviewer, and hr_spoc are required' });
   }
 
+  const normalizedMobile = String(mobile).trim();
+  if (!/^\d{10}$/.test(normalizedMobile)) {
+    return res.status(400).json({ error: 'Mobile number must be exactly 10 digits' });
+  }
+  if (alternate_mobile && !/^\d{10}$/.test(String(alternate_mobile).trim())) {
+    return res.status(400).json({ error: 'Alternate mobile number must be exactly 10 digits' });
+  }
+
   const position = await db.queryOne('SELECT id FROM positions WHERE job_id = ?', [job_id]);
   if (!position) return res.status(400).json({ error: 'Invalid job_id: position not found' });
 
-  const existingRecords = await db.query<any>('SELECT * FROM candidates WHERE mobile = ?', [mobile]);
+  const existingRecords = await db.query<any>('SELECT * FROM candidates WHERE TRIM(mobile) = ?', [normalizedMobile]);
 
-  const ACTIVE_STAGES = ['Interview', 'Offer Negotiation', 'Offer Approval Pending', 'Offer Released'];
+  const ACTIVE_STAGES = ['Interview', 'Offer Negotiation', 'Offer Approval Pending', 'Offer Released', 'Joined'];
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
@@ -100,7 +108,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   await db.run(
     `INSERT INTO candidates (id, name, mobile, alternate_mobile, email, job_id, interviewer, hr_spoc, candidate_current_role, current_company, experience, current_ctc, expected_ctc, notice_period, remarks, stage, sourcing_date, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, name, mobile, alternate_mobile || null, email || null, job_id, interviewer, hr_spoc,
+    [id, name, normalizedMobile, alternate_mobile || null, email || null, job_id, interviewer, hr_spoc,
      candidate_current_role || null, current_company || null, experience || null, current_ctc || null,
      expected_ctc || null, notice_period || null, remarks || null,
      'Interview', today, now, now],
@@ -113,9 +121,34 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res: Response) =>
   const existing = await db.queryOne<any>('SELECT * FROM candidates WHERE id = ?', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Candidate not found' });
 
+  if (req.body.mobile !== undefined && !/^\d{10}$/.test(String(req.body.mobile).trim())) {
+    return res.status(400).json({ error: 'Mobile number must be exactly 10 digits' });
+  }
+  if (req.body.alternate_mobile && !/^\d{10}$/.test(String(req.body.alternate_mobile).trim())) {
+    return res.status(400).json({ error: 'Alternate mobile number must be exactly 10 digits' });
+  }
+
+  if (req.body.mobile !== undefined) {
+    const newMobile = String(req.body.mobile).trim();
+    const ACTIVE_STAGES = ['Interview', 'Offer Negotiation', 'Offer Approval Pending', 'Offer Released', 'Joined'];
+    const conflicts = await db.query<any>(
+      'SELECT * FROM candidates WHERE TRIM(mobile) = ? AND id != ?',
+      [newMobile, req.params.id],
+    );
+    for (const rec of conflicts) {
+      if (ACTIVE_STAGES.includes(rec.stage)) {
+        return res.status(409).json({
+          error: `This mobile number belongs to a candidate already active in the pipeline for ${rec.job_id} (${rec.stage}).`,
+        });
+      }
+    }
+  }
+
   const now = new Date().toISOString();
   const today = new Date().toISOString().split('T')[0];
   const updates = { ...req.body };
+  if (updates.mobile) updates.mobile = String(updates.mobile).trim();
+  if (updates.alternate_mobile) updates.alternate_mobile = String(updates.alternate_mobile).trim();
 
   if (updates.feedback && !existing.interview_done_date) updates.interview_done_date = today;
   if (updates.stage === 'Offer Released' && existing.stage !== 'Offer Released') updates.offer_release_date = today;
