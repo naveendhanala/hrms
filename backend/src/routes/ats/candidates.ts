@@ -149,8 +149,8 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res: Response) =>
   const updates = { ...req.body };
   if (updates.mobile) updates.mobile = String(updates.mobile).trim();
   if (updates.alternate_mobile) updates.alternate_mobile = String(updates.alternate_mobile).trim();
+  if (updates.alternate_mobile === '' || updates.alternate_mobile === null) updates.alternate_mobile = null;
 
-  if (updates.feedback && !existing.interview_done_date) updates.interview_done_date = today;
   if (updates.stage === 'Offer Released' && existing.stage !== 'Offer Released') updates.offer_release_date = today;
   if (updates.stage === 'Joined' && existing.stage !== 'Joined') updates.joined_date = today;
 

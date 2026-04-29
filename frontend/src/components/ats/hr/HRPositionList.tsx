@@ -11,18 +11,19 @@ export default function HRPositionList() {
   const [editing, setEditing] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [showAll, setShowAll] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await listPositions({ status: 'Active' });
+      const data = await listPositions(showAll ? undefined : { status: 'Active' });
       setPositions(data);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showAll]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -74,7 +75,23 @@ export default function HRPositionList() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-4">Positions</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-2xl font-bold text-gray-900">Positions</h2>
+        <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm font-medium">
+          <button
+            onClick={() => setShowAll(false)}
+            className={`px-3 py-1.5 transition-colors ${!showAll ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+          >
+            Active
+          </button>
+          <button
+            onClick={() => setShowAll(true)}
+            className={`px-3 py-1.5 transition-colors border-l border-gray-300 ${showAll ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+          >
+            All
+          </button>
+        </div>
+      </div>
 
       {/* HR SPOC Summary Bar */}
       {!loading && positions.length > 0 && (
@@ -100,7 +117,7 @@ export default function HRPositionList() {
       {loading ? (
         <p className="text-gray-500">Loading...</p>
       ) : positions.length === 0 ? (
-        <p className="text-gray-500">No active positions found.</p>
+        <p className="text-gray-500">{showAll ? 'No positions found.' : 'No active positions found.'}</p>
       ) : (
         <div className="space-y-4">
           {grouped.map(([spoc, rows]) => {
@@ -140,25 +157,36 @@ export default function HRPositionList() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
-                        {rows.map((p) => (
-                          <tr key={p.job_id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{p.job_id}</td>
+                        {rows.map((p) => {
+                          const isClosed = p.status !== 'Active';
+                          return (
+                          <tr key={p.job_id} className={isClosed ? 'bg-gray-50 opacity-60' : 'hover:bg-gray-50'}>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                              <span>{p.job_id}</span>
+                              {isClosed && (
+                                <span className="ml-2 px-1.5 py-0.5 rounded text-xs font-semibold bg-gray-200 text-gray-500">Closed</span>
+                              )}
+                            </td>
                             <td className="px-4 py-3 text-sm text-gray-600">{p.project}</td>
                             <td className="px-4 py-3 text-sm text-gray-600">{p.department}</td>
                             <td className="px-4 py-3 text-sm text-gray-600">{p.role}</td>
                             <td className="px-4 py-3 text-sm text-gray-600">{p.level}</td>
                             <td className="px-4 py-3 text-sm text-gray-600">{p.required_by_date?.slice(0, 10) || '—'}</td>
                             <td className="px-4 py-3 text-sm">
-                              <select
-                                value={currentSpoc(p)}
-                                onChange={(e) => handleSpocChange(p.job_id, e.target.value)}
-                                className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                              >
-                                {HR_SPOC_OPTIONS.map((h) => <option key={h} value={h}>{h}</option>)}
-                              </select>
+                              {isClosed ? (
+                                <span className="text-gray-500">{p.hr_spoc || '—'}</span>
+                              ) : (
+                                <select
+                                  value={currentSpoc(p)}
+                                  onChange={(e) => handleSpocChange(p.job_id, e.target.value)}
+                                  className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                >
+                                  {HR_SPOC_OPTIONS.map((h) => <option key={h} value={h}>{h}</option>)}
+                                </select>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-sm">
-                              {isDirty(p) && (
+                              {!isClosed && isDirty(p) && (
                                 <button
                                   onClick={() => handleSave(p.job_id)}
                                   disabled={saving === p.job_id}
@@ -169,7 +197,8 @@ export default function HRPositionList() {
                               )}
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

@@ -57,10 +57,20 @@ function ReadOnlyCompetencyTable({
 }
 
 function parseFeedback(text: string) {
-  const result  = text.match(/Result:\s*(accepted|rejected)/i)?.[1]?.toLowerCase() ?? '';
-  const reason  = text.match(/Reason:\s*([^|]+)/)?.[1]?.trim() ?? '';
-  const remarks = text.match(/Remarks:\s*([\s\S]*)$/)?.[1]?.trim() ?? '';
-  return { result, reason, remarks };
+  try {
+    const obj = JSON.parse(text);
+    return {
+      result: (obj.result ?? '').toLowerCase(),
+      reason: obj.reject_reason ?? '',
+      remarks: obj.remarks ?? '',
+    };
+  } catch {
+    // legacy pipe-delimited rows
+    const result  = text.match(/Result:\s*(accepted|rejected)/i)?.[1]?.toLowerCase() ?? '';
+    const reason  = text.match(/Reason:\s*([^|]+)/)?.[1]?.trim() ?? '';
+    const remarks = text.match(/Remarks:\s*([\s\S]*)$/)?.[1]?.trim() ?? '';
+    return { result, reason, remarks };
+  }
 }
 
 function CandidateDetailModal({ candidate, onClose }: { candidate: Candidate; onClose: () => void }) {

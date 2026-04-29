@@ -29,7 +29,6 @@ const ConfigurationsPage = lazy(() => import('./pages/ConfigurationsPage'));
 const AdvancesPage       = lazy(() => import('./pages/AdvancesPage'));
 const TaxComputationPage = lazy(() => import('./pages/TaxComputationPage'));
 const AttendancePage     = lazy(() => import('./pages/attendance/AttendancePage'));
-const FeedbackPage       = lazy(() => import('./pages/ats/FeedbackPage'));
 const AdminPage          = lazy(() => import('./pages/ats/AdminPage'));
 const HRPage             = lazy(() => import('./pages/ats/HRPage'));
 const DirectorPage       = lazy(() => import('./pages/ats/DirectorPage'));
@@ -63,8 +62,6 @@ export default function App() {
           <Route path="/payroll/advances" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><AdvancesPage /></ProtectedRoute>} />
           <Route path="/payroll/tax-computation" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><TaxComputationPage /></ProtectedRoute>} />
           <Route path="/payroll/configurations" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><ConfigurationsPage /></ProtectedRoute>} />
-          <Route path="/feedback" element={<FeedbackPage />} />
-
           {/* Knowledge Base */}
           <Route path="/kb" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee']}><KnowledgeBasePage /></ProtectedRoute>} />
 

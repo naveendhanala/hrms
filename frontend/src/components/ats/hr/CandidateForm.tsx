@@ -87,9 +87,10 @@ export default function CandidateForm({ initial, onSubmit, onCancel }: Props) {
     setInterviewerError('');
     setSaving(true);
     try {
+      const normalized = { ...form, alternate_mobile: form.alternate_mobile?.trim() || null };
       const payload = initial
-        ? form
-        : { ...form, sourcing_date: new Date().toISOString().slice(0, 10) };
+        ? normalized
+        : { ...normalized, sourcing_date: new Date().toISOString().slice(0, 10) };
       await onSubmit(payload);
     } finally {
       setSaving(false);

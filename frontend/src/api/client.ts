@@ -60,6 +60,11 @@ export async function apiFetch<T = unknown>(
     } catch {
       body = { message: res.statusText };
     }
+    if (res.status === 401) {
+      localStorage.removeItem('hrms_token');
+      localStorage.removeItem('hrms_user');
+      window.location.replace('/login');
+    }
     throw new ApiError(res.status, body);
   }
 

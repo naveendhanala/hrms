@@ -88,6 +88,7 @@ export interface PipelineItem {
   total_req: number;
   required_by_date: string;
   hr_spoc: string;
+  status: string;
   total: number;
   stage_counts: Record<string, number>;
 }

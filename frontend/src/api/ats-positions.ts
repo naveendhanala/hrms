@@ -38,6 +38,7 @@ export function rejectPositionRequest(jobId: string) {
   return apiFetch<Position>(`${BASE}/${jobId}/reject`, { method: 'POST' });
 }
 
-export function getPipeline() {
-  return apiFetch<PipelineItem[]>(`${BASE}/pipeline`);
+export function getPipeline(params?: Record<string, string>) {
+  const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+  return apiFetch<PipelineItem[]>(`${BASE}/pipeline${qs}`);
 }

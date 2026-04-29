@@ -5,10 +5,13 @@ import { authenticateToken, AuthRequest } from '../../middleware/auth';
 
 const router = Router();
 
-router.get('/pipeline', authenticateToken, async (_req: AuthRequest, res: Response) => {
+router.get('/pipeline', authenticateToken, async (req: AuthRequest, res: Response) => {
+  const showAll = req.query.showAll === 'true';
+  const statusClause = showAll ? '' : `AND p.status = 'Active'`;
+
   const rows = await db.query<any>(`
     SELECT p.job_id, p.project, p.department, p.role, p.total_req, p.required_by_date, p.hr_spoc,
-           p.created_at,
+           p.status, p.created_at,
            COUNT(c.id) FILTER (WHERE c.stage = 'Interview') AS s0,
            COUNT(c.id) FILTER (WHERE c.stage = 'Offer Negotiation')               AS s1,
            COUNT(c.id) FILTER (WHERE c.stage = 'Offer Approval Pending')          AS s6,
@@ -21,10 +24,10 @@ router.get('/pipeline', authenticateToken, async (_req: AuthRequest, res: Respon
            COUNT(c.id)                                                              AS total
     FROM positions p
     LEFT JOIN candidates c ON c.job_id = p.job_id
-    WHERE p.status = 'Active'
-      AND COALESCE(p.approval_status, '') NOT IN ('pending', 'rejected')
+    WHERE COALESCE(p.approval_status, '') NOT IN ('pending', 'rejected')
+      ${statusClause}
     GROUP BY p.job_id, p.project, p.department, p.role, p.total_req,
-             p.required_by_date, p.hr_spoc, p.created_at
+             p.required_by_date, p.hr_spoc, p.status, p.created_at
     ORDER BY p.created_at DESC
   `);
 
@@ -36,6 +39,7 @@ router.get('/pipeline', authenticateToken, async (_req: AuthRequest, res: Respon
     total_req: row.total_req,
     required_by_date: row.required_by_date,
     hr_spoc: row.hr_spoc,
+    status: row.status,
     total: Number(row.total),
     stage_counts: {
       'Interview': Number(row.s0),

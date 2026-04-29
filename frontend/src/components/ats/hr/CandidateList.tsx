@@ -59,10 +59,20 @@ function ReadOnlyCompetencyTable({
 }
 
 function parseFeedback(text: string) {
-  const result  = text.match(/Result:\s*(accepted|rejected)/i)?.[1]?.toLowerCase() ?? '';
-  const reason  = text.match(/Reason:\s*([^|]+)/)?.[1]?.trim() ?? '';
-  const remarks = text.match(/Remarks:\s*([\s\S]*)$/)?.[1]?.trim() ?? '';
-  return { result, reason, remarks };
+  try {
+    const obj = JSON.parse(text);
+    return {
+      result: (obj.result ?? '').toLowerCase(),
+      reason: obj.reject_reason ?? '',
+      remarks: obj.remarks ?? '',
+    };
+  } catch {
+    // legacy pipe-delimited rows
+    const result  = text.match(/Result:\s*(accepted|rejected)/i)?.[1]?.toLowerCase() ?? '';
+    const reason  = text.match(/Reason:\s*([^|]+)/)?.[1]?.trim() ?? '';
+    const remarks = text.match(/Remarks:\s*([\s\S]*)$/)?.[1]?.trim() ?? '';
+    return { result, reason, remarks };
+  }
 }
 
 export default function CandidateList() {
@@ -84,11 +94,9 @@ export default function CandidateList() {
 
   // Offer Details section state
   const [offerForm, setOfferForm] = useState({ offered_ctc: '', offer_notes: '', expected_joining_date: '' });
-  const [savingOffer, setSavingOffer] = useState(false);
+  const [submittingOffer, setSubmittingOffer] = useState(false);
   const [offerError, setOfferError] = useState('');
-
-  // Request Approval state
-  const [requestingApproval, setRequestingApproval] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [exporting, setExporting] = useState(false);
   const [createError, setCreateError] = useState('');
 
@@ -106,6 +114,7 @@ export default function CandidateList() {
 
   const load = useCallback(async (pg = page) => {
     setLoading(true);
+    setLoadError('');
     try {
       const params: Record<string, string> = { page: String(pg), limit: String(PAGE_SIZE) };
       if (search)        params.search  = search;
@@ -114,8 +123,8 @@ export default function CandidateList() {
       const result = await listCandidatesPaged(params);
       setCandidates(result.data);
       setTotal(result.total);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      setLoadError(err?.message || 'Failed to load candidates.');
     } finally {
       setLoading(false);
     }
@@ -200,7 +209,7 @@ export default function CandidateList() {
     }
   };
 
-  const handleSaveOffer = async () => {
+  const handleSubmitOffer = async () => {
     if (!editing) return;
     if (!offerForm.offered_ctc.trim()) {
       setOfferError('Offered CTC is required.');
@@ -211,30 +220,19 @@ export default function CandidateList() {
       return;
     }
     setOfferError('');
-    setSavingOffer(true);
+    setSubmittingOffer(true);
     try {
-      const updated = await updateCandidate(editing.id, {
+      await updateCandidate(editing.id, {
         offered_ctc: offerForm.offered_ctc,
         offer_notes: offerForm.offer_notes,
         expected_joining_date: offerForm.expected_joining_date || '',
       });
-      setEditing(updated as Candidate);
-      load();
-    } finally {
-      setSavingOffer(false);
-    }
-  };
-
-  const handleRequestApproval = async () => {
-    if (!editing) return;
-    setRequestingApproval(true);
-    try {
       await requestOfferApproval(editing.id);
       setEditing(null);
       setShowForm(false);
       load();
     } finally {
-      setRequestingApproval(false);
+      setSubmittingOffer(false);
     }
   };
 
@@ -256,11 +254,6 @@ export default function CandidateList() {
   const showOfferSection = editing && (editing.stage === 'Offer Negotiation' || editing.stage === 'Offer Approval Pending' || editing.offered_ctc);
   const POST_NEGOTIATION_STAGES = ['Offer Approval Pending', 'Offer Released', 'Joined', 'Offer Dropped', 'Rejected'];
   const offerLocked = POST_NEGOTIATION_STAGES.includes(editing?.stage ?? '');
-  const showRequestApproval = (
-    editing?.stage === 'Offer Negotiation' &&
-    !!editing?.offered_ctc &&
-    !!editing?.expected_joining_date
-  );
 
   const parsedFeedback = editing?.feedback ? parseFeedback(editing.feedback) : null;
   const competencies = (() => {
@@ -313,6 +306,8 @@ export default function CandidateList() {
 
       {loading ? (
         <p className="text-gray-500">Loading...</p>
+      ) : loadError ? (
+        <p className="text-red-600 text-sm">{loadError}</p>
       ) : candidates.length === 0 ? (
         <p className="text-gray-500">No candidates found.</p>
       ) : (
@@ -464,11 +459,11 @@ export default function CandidateList() {
                 </div>
                 <div className="flex justify-end">
                   <button
-                    onClick={handleSaveOffer}
-                    disabled={savingOffer}
+                    onClick={handleSubmitOffer}
+                    disabled={submittingOffer}
                     className="px-4 py-2 text-sm font-medium text-white bg-amber-500 rounded-lg hover:bg-amber-600 disabled:opacity-50"
                   >
-                    {savingOffer ? 'Saving…' : 'Save Offer Details'}
+                    {submittingOffer ? 'Submitting…' : 'Save & Request Approval'}
                   </button>
                 </div>
               </div>
@@ -534,19 +529,6 @@ export default function CandidateList() {
           </div>
         )}
 
-        {/* ── Request Approval ── */}
-        {showRequestApproval && (
-          <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between">
-            <p className="text-xs text-gray-500">Offer details saved. Send to Director for approval.</p>
-            <button
-              onClick={handleRequestApproval}
-              disabled={requestingApproval}
-              className="px-4 py-2 text-sm font-medium text-white bg-amber-500 rounded-lg hover:bg-amber-600 disabled:opacity-50"
-            >
-              {requestingApproval ? 'Requesting…' : 'Request Approval'}
-            </button>
-          </div>
-        )}
       </Modal>
     </div>
   );

@@ -1,33 +1,45 @@
-import { useState, useEffect } from 'react';
-import { getReport } from '../../../api/ats-report';
-import type { Candidate } from '../../../types';
+import { useState, useEffect, useMemo } from 'react';
+import { getReport, type ReportRow } from '../../../api/ats-report';
+
+const COLS = ['Project', 'Level', 'Department', 'Role', 'Total Req', 'Total Joined', 'Offer Released', 'Open'] as const;
 
 export default function ReportView() {
-  const [data, setData] = useState<Candidate[]>([]);
+  const [data, setData] = useState<ReportRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [error, setError] = useState('');
+  const [filterProject, setFilterProject] = useState('');
+  const [filterDept, setFilterDept] = useState('');
 
   useEffect(() => {
     setLoading(true);
-    const activeFilters: Record<string, string> = {};
-    Object.entries(filters).forEach(([k, v]) => {
-      if (v) activeFilters[k] = v;
-    });
-    getReport(Object.keys(activeFilters).length > 0 ? activeFilters : undefined)
+    setError('');
+    getReport()
       .then(setData)
-      .catch(console.error)
+      .catch((err: any) => setError(err?.message || 'Failed to load report.'))
       .finally(() => setLoading(false));
-  }, [filters]);
+  }, []);
 
-  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFilters((prev) => ({ ...prev, [name]: value }));
-  };
+  const projects    = useMemo(() => [...new Set(data.map((r) => r.project))].sort(), [data]);
+  const departments = useMemo(() => [...new Set(data.map((r) => r.department))].sort(), [data]);
+
+  const filtered = useMemo(() => {
+    return data.filter((r) =>
+      (!filterProject || r.project    === filterProject) &&
+      (!filterDept    || r.department === filterDept),
+    );
+  }, [data, filterProject, filterDept]);
+
+  const totals = useMemo(() => ({
+    total_req:           filtered.reduce((s, r) => s + r.total_req,           0),
+    total_joined:        filtered.reduce((s, r) => s + r.total_joined,        0),
+    total_offer_released:filtered.reduce((s, r) => s + r.total_offer_released,0),
+    open:                filtered.reduce((s, r) => s + r.open,                0),
+  }), [filtered]);
 
   const exportCSV = () => {
-    if (data.length === 0) return;
-    const headers = ['Name', 'Mobile', 'Job ID', 'Stage', 'Interviewer', 'HR SPOC', 'Sourcing Date', 'Joined Date'];
-    const rows = data.map((c) => [c.name, c.mobile, c.job_id, c.stage, c.interviewer, c.hr_spoc, c.sourcing_date, c.joined_date]);
+    if (filtered.length === 0) return;
+    const headers = ['Project', 'Level', 'Department', 'Role', 'Total Req', 'Total Joined', 'Offer Released', 'Open'];
+    const rows = filtered.map((r) => [r.project, r.level, r.department, r.role, r.total_req, r.total_joined, r.total_offer_released, r.open]);
     const csv = [headers.join(','), ...rows.map((r) => r.map((v) => `"${v ?? ''}"`).join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -44,74 +56,73 @@ export default function ReportView() {
         <h2 className="text-2xl font-bold text-gray-900">Reports</h2>
         <button
           onClick={exportCSV}
-          disabled={data.length === 0}
+          disabled={filtered.length === 0}
           className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
         >
           Export CSV
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <input
-          name="job_id"
-          placeholder="Filter by Job ID"
-          value={filters.job_id ?? ''}
-          onChange={handleFilterChange}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-        />
-        <input
-          name="hr_spoc"
-          placeholder="Filter by HR SPOC"
-          value={filters.hr_spoc ?? ''}
-          onChange={handleFilterChange}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-        />
-        <input
-          name="stage"
-          placeholder="Filter by Stage"
-          value={filters.stage ?? ''}
-          onChange={handleFilterChange}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-        />
-        <input
-          name="from_date"
-          type="date"
-          value={filters.from_date ?? ''}
-          onChange={handleFilterChange}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-        />
+      <div className="flex flex-wrap gap-3 mb-6">
+        <select
+          value={filterProject}
+          onChange={(e) => setFilterProject(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-600"
+        >
+          <option value="">All Projects</option>
+          {projects.map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
+        <select
+          value={filterDept}
+          onChange={(e) => setFilterDept(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-600"
+        >
+          <option value="">All Departments</option>
+          {departments.map((d) => <option key={d} value={d}>{d}</option>)}
+        </select>
       </div>
 
       {loading ? (
         <p className="text-gray-500">Loading...</p>
-      ) : data.length === 0 ? (
+      ) : error ? (
+        <p className="text-red-600 text-sm">{error}</p>
+      ) : filtered.length === 0 ? (
         <p className="text-gray-500">No data found.</p>
       ) : (
         <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {['Name', 'Mobile', 'Job ID', 'Stage', 'Interviewer', 'HR SPOC', 'Sourcing Date', 'Joined Date'].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {COLS.map((h) => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {data.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{c.name}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{c.mobile}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{c.job_id}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{c.stage}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{c.interviewer}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{c.hr_spoc}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{c.sourcing_date?.slice(0, 10)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{c.joined_date?.slice(0, 10)}</td>
+              {filtered.map((r, i) => (
+                <tr key={i} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{r.project}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{r.level || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{r.department}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{r.role}</td>
+                  <td className="px-4 py-3 text-sm text-center font-medium text-gray-800">{r.total_req}</td>
+                  <td className="px-4 py-3 text-sm text-center font-medium text-green-700">{r.total_joined}</td>
+                  <td className="px-4 py-3 text-sm text-center font-medium text-blue-700">{r.total_offer_released}</td>
+                  <td className="px-4 py-3 text-sm text-center font-medium text-amber-700">{r.open}</td>
                 </tr>
               ))}
             </tbody>
+            <tfoot className="bg-gray-100 border-t-2 border-gray-300">
+              <tr>
+                <td colSpan={4} className="px-4 py-3 text-sm font-bold text-gray-700 uppercase tracking-wide">Grand Total</td>
+                <td className="px-4 py-3 text-sm text-center font-bold text-gray-900">{totals.total_req}</td>
+                <td className="px-4 py-3 text-sm text-center font-bold text-green-800">{totals.total_joined}</td>
+                <td className="px-4 py-3 text-sm text-center font-bold text-blue-800">{totals.total_offer_released}</td>
+                <td className="px-4 py-3 text-sm text-center font-bold text-amber-800">{totals.open}</td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
