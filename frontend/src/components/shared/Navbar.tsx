@@ -3,14 +3,15 @@ import { useAuth, ROLE_ROUTES } from '../../context/AuthContext';
 import type { UserRole } from '../../types';
 
 const MODULE_ACCESS: Record<string, UserRole[]> = {
-  ATS: ['admin', 'hr', 'director', 'projectlead', 'businesshead'],
-  LMS: ['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee'],
+  ATS: ['admin', 'hr', 'vp_hr', 'director', 'projectlead', 'businesshead'],
+  LMS: ['admin', 'hr', 'vp_hr', 'director', 'projectlead', 'businesshead', 'employee'],
 };
 
 const MODULE_ROUTES: Record<string, Record<UserRole, string>> = {
   ATS: {
     admin: '/ats/admin',
     hr: '/ats/hr',
+    vp_hr: '/ats/hr',
     director: '/ats/director',
     projectlead: '/ats/project-lead',
     businesshead: '/ats/business-head',
@@ -19,11 +20,12 @@ const MODULE_ROUTES: Record<string, Record<UserRole, string>> = {
   LMS: {
     admin: '/lms/admin',
     hr: '/lms',
+    vp_hr: '/lms/admin',
     director: '/lms',
     projectlead: '/lms',
     businesshead: '/lms',
     employee: '/lms',
-  } as Record<UserRole, string>,
+  },
 };
 
 export default function Navbar() {

@@ -39,7 +39,7 @@ export interface Position {
   department: string;
   indent_date: string;
   role: string;
-  status: 'Active' | 'Inactive';
+  status: 'Active' | 'Inactive' | 'closed';
   total_req: number;
   required_by_date: string;
   interview_panel: string;

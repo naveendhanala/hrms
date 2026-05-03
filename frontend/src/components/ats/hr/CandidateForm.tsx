@@ -51,7 +51,7 @@ function parseJson<T>(raw: string | undefined | null, fallback: T[]): T[] {
 export default function CandidateForm({ initial, onSubmit, onCancel }: Props) {
   const [form, setForm] = useState<Partial<Candidate>>(EMPTY);
   const [positions, setPositions] = useState<Position[]>([]);
-  const [employees, setEmployees] = useState<{ id: string; name: string }[]>([]);
+  const [employees, setEmployees] = useState<{ id: number; name: string }[]>([]);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [interviewerError, setInterviewerError] = useState('');
@@ -127,7 +127,7 @@ export default function CandidateForm({ initial, onSubmit, onCancel }: Props) {
     try {
       const normalized = {
         ...form,
-        alternate_mobile: form.alternate_mobile?.trim() || null,
+        alternate_mobile: form.alternate_mobile?.trim() || undefined,
         education: JSON.stringify(eduRows),
         work_experience: JSON.stringify(expRows),
       };
