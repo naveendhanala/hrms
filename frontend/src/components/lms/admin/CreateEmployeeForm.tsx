@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { createEmployee } from '../../../api/auth';
 import { getManagers, type Manager } from '../../../api/users';
 
-const ROLES = ['employee', 'hr', 'director', 'projectlead', 'businesshead', 'admin'];
+const ROLES = ['employee', 'hr', 'director', 'projectlead', 'businesshead', 'admin', 'vp_hr'];
 const ROLE_LABELS: Record<string, string> = {
   employee: 'Employee',
   hr: 'HR',
@@ -10,6 +10,7 @@ const ROLE_LABELS: Record<string, string> = {
   projectlead: 'Project Lead',
   businesshead: 'Business Head',
   admin: 'Admin',
+  vp_hr: 'VP HR&OD',
 };
 
 const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500';
@@ -26,11 +27,13 @@ export default function CreateEmployeeForm({ onSuccess }: { onSuccess?: () => vo
     dob: '',
     date_of_joining: '',
     designation: '',
+    department: '',
     project: '',
     location: '',
     state: '',
     site_office: '',
     status: 'active',
+    level: 'APM Below',
   });
   const [managerId, setManagerId] = useState<number | null>(null);
   const [managers, setManagers] = useState<Manager[]>([]);
@@ -55,6 +58,7 @@ export default function CreateEmployeeForm({ onSuccess }: { onSuccess?: () => vo
         dob: form.dob || undefined,
         date_of_joining: form.date_of_joining || undefined,
         reporting_manager_id: managerId,
+        level: form.level,
       });
       onSuccess?.();
     } catch (err: unknown) {
@@ -122,17 +126,32 @@ export default function CreateEmployeeForm({ onSuccess }: { onSuccess?: () => vo
         </div>
       </div>
 
-      {/* Row 5: Designation + Status */}
+      {/* Row 5: Designation + Department */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div>
           <label className={labelCls}>Designation</label>
           <input className={inputCls} placeholder="e.g. Senior Engineer" value={form.designation} onChange={set('designation')} />
         </div>
         <div>
+          <label className={labelCls}>Department</label>
+          <input className={inputCls} placeholder="e.g. Engineering" value={form.department} onChange={set('department')} />
+        </div>
+      </div>
+
+      {/* Row 5b: Status + Level */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div>
           <label className={labelCls}>Status</label>
           <select className={inputCls} value={form.status} onChange={set('status')}>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
+          </select>
+        </div>
+        <div>
+          <label className={labelCls}>Level</label>
+          <select className={inputCls} value={form.level} onChange={set('level')}>
+            <option value="APM Below">APM Below</option>
+            <option value="APM Above">APM Above</option>
           </select>
         </div>
       </div>

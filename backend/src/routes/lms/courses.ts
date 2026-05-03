@@ -50,7 +50,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res: Response) =>
   res.json({ ...(course as any), questions, attempt: attempt || null });
 });
 
-router.post('/', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.post('/', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { title, description, youtube_url } = req.body;
   if (!title || !youtube_url) return res.status(400).json({ error: 'title and youtube_url are required' });
 
@@ -62,7 +62,7 @@ router.post('/', authenticateToken, requireRole('admin', 'hr'), async (req: Auth
   res.status(201).json(await db.queryOne('SELECT * FROM courses WHERE id = ?', [result.lastInsertRowid]));
 });
 
-router.put('/:id', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const existing = await db.queryOne('SELECT * FROM courses WHERE id = ?', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Course not found' });
 
@@ -82,7 +82,7 @@ router.put('/:id', authenticateToken, requireRole('admin', 'hr'), async (req: Au
   res.json(await db.queryOne('SELECT * FROM courses WHERE id = ?', [req.params.id]));
 });
 
-router.delete('/:id', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.delete('/:id', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const existing = await db.queryOne('SELECT * FROM courses WHERE id = ?', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Course not found' });
 

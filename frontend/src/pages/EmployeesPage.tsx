@@ -3,6 +3,8 @@ import AppLayout from '../components/shared/AppLayout';
 import Modal from '../components/shared/Modal';
 import CreateEmployeeForm from '../components/lms/admin/CreateEmployeeForm';
 import { getEmployees, getManagers, updateEmployee, type Employee, type Manager } from '../api/users';
+import { getAllExits, vpAccept, type ExitRequest } from '../api/exit';
+import { useAuth } from '../context/AuthContext';
 
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   admin:        { bg: '#ede9fe', text: '#6d28d9' },
@@ -11,9 +13,10 @@ const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   projectlead:  { bg: '#dcfce7', text: '#166534' },
   businesshead: { bg: '#fce7f3', text: '#9d174d' },
   employee:     { bg: '#f3f4f6', text: '#374151' },
+  vp_hr:        { bg: '#fdf4ff', text: '#7e22ce' },
 };
 
-const ROLES = ['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee'];
+const ROLES = ['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee', 'vp_hr'];
 
 const ROLE_LABELS: Record<string, string> = {
   admin:        'Admin',
@@ -22,6 +25,14 @@ const ROLE_LABELS: Record<string, string> = {
   projectlead:  'Project Lead',
   businesshead: 'Business Head',
   employee:     'Employee',
+  vp_hr:        'VP HR&OD',
+};
+
+const EXIT_STATUS_LABELS: Record<string, { label: string; bg: string; color: string }> = {
+  pending_manager: { label: 'Pending Manager',  bg: '#fef3c7', color: '#92400e' },
+  pending_vp:      { label: 'Pending VP Approval', bg: '#dbeafe', color: '#1d4ed8' },
+  approved:        { label: 'Approved',          bg: '#dcfce7', color: '#15803d' },
+  revoked:         { label: 'Revoked',           bg: '#f3f4f6', color: '#6b7280' },
 };
 
 const MODULES = [
@@ -49,8 +60,15 @@ function CrossIcon() {
   );
 }
 
+function fmtDate(d: string) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 export default function EmployeesPage() {
-  const [tab, setTab] = useState<'list' | 'permissions'>('list');
+  const { user } = useAuth();
+
+  const [tab, setTab] = useState<'list' | 'permissions' | 'exit'>('list');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [managers, setManagers] = useState<Manager[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,13 +79,27 @@ export default function EmployeesPage() {
   const [editForm, setEditForm] = useState<Partial<Employee>>({});
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  // Exit requests state
+  const [exits, setExits] = useState<ExitRequest[]>([]);
+  const [loadingExits, setLoadingExits] = useState(true);
+  const [acceptingVp, setAcceptingVp] = useState<number | null>(null);
+
+  const fetchEmployees = () => {
     setLoading(true);
     Promise.all([
       getEmployees().then(setEmployees).catch((e: any) => setError(e.message)),
       getManagers().then(setManagers).catch(() => {}),
     ]).finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { fetchEmployees(); }, []);
+
+  useEffect(() => {
+    if (tab === 'exit') {
+      setLoadingExits(true);
+      getAllExits().then(setExits).catch(() => {}).finally(() => setLoadingExits(false));
+    }
+  }, [tab]);
 
   const openEdit = (emp: Employee) => {
     setEditingEmployee(emp);
@@ -86,12 +118,14 @@ export default function EmployeesPage() {
         dob:                  editForm.dob ?? undefined,
         date_of_joining:      editForm.date_of_joining ?? undefined,
         project:              editForm.project ?? '',
+        department:           editForm.department ?? '',
         location:             editForm.location ?? '',
         state:                editForm.state ?? '',
         site_office:          editForm.site_office ?? '',
         designation:          editForm.designation ?? '',
         status:               editForm.status ?? 'active',
         reporting_manager_id: editForm.reporting_manager_id ?? null,
+        level:                editForm.level ?? 'APM Below',
       };
       await updateEmployee(editingEmployee.id, patch);
       setEmployees((prev) => prev.map((e) => e.id === editingEmployee.id ? { ...e, ...patch } : e));
@@ -100,6 +134,18 @@ export default function EmployeesPage() {
       alert(e.message || 'Failed to save');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleVpAccept = async (id: number) => {
+    setAcceptingVp(id);
+    try {
+      await vpAccept(id);
+      setExits(prev => prev.map(e => e.id === id ? { ...e, status: 'approved' as const } : e));
+    } catch (e: any) {
+      alert(e.message || 'Failed to approve.');
+    } finally {
+      setAcceptingVp(null);
     }
   };
 
@@ -112,6 +158,17 @@ export default function EmployeesPage() {
     e.project.toLowerCase().includes(q) ||
     e.location.toLowerCase().includes(q)
   );
+
+  const pendingVpExits = exits.filter(e => e.status === 'pending_vp');
+  const otherExits = exits.filter(e => e.status !== 'pending_vp');
+
+  const canSeeExitTab = user?.role === 'vp_hr' || user?.role === 'admin' || user?.role === 'hr';
+
+  const visibleTabs: Array<['list' | 'permissions' | 'exit', string]> = [
+    ['list', 'All Employees'],
+    ['permissions', 'Role Permissions'],
+    ...(canSeeExitTab ? [['exit', `Exit Requests${pendingVpExits.length > 0 ? ` (${pendingVpExits.length})` : ''}`] as ['exit', string]] : []),
+  ];
 
   return (
     <AppLayout>
@@ -162,7 +219,7 @@ export default function EmployeesPage() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid #e5e7eb' }}>
-        {([['list', 'All Employees'], ['permissions', 'Role Permissions']] as const).map(([key, label]) => (
+        {visibleTabs.map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -302,7 +359,7 @@ export default function EmployeesPage() {
             </table>
           )}
         </div>
-      ) : (
+      ) : tab === 'permissions' ? (
         /* ── Role permissions matrix ── */
         <div style={{ background: '#fff', borderRadius: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -375,7 +432,108 @@ export default function EmployeesPage() {
             </tbody>
           </table>
         </div>
+      ) : (
+        /* ── Exit Requests tab ── */
+        loadingExits ? (
+          <div style={{ padding: 40, color: '#9ca3af', fontSize: 14 }}>Loading…</div>
+        ) : exits.length === 0 ? (
+          <div style={{ padding: 48, textAlign: 'center', background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', color: '#6b7280', fontSize: 14 }}>
+            No exit requests found.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            {/* Pending VP Approval section */}
+            {pendingVpExits.length > 0 && (
+              <div>
+                <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 700, color: '#374151' }}>
+                  Pending Final Approval ({pendingVpExits.length})
+                </h3>
+                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                    <thead>
+                      <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+                        {['Employee', 'Reporting Manager', 'Submitted', 'Notice Period', 'Last Working Day', 'Reason', ''].map(h => (
+                          <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#374151', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingVpExits.map((ex, i) => (
+                        <tr key={ex.id} style={{ borderBottom: i < pendingVpExits.length - 1 ? '1px solid #f3f4f6' : 'none' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                          <td style={{ padding: '12px 16px' }}>
+                            <div style={{ fontWeight: 600, color: '#111827' }}>{ex.employee_name}</div>
+                            <div style={{ fontSize: 12, color: '#9ca3af' }}>{ex.designation} {ex.emp_id ? `· ${ex.emp_id}` : ''}</div>
+                          </td>
+                          <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 13 }}>{ex.reporting_manager_name || '—'}</td>
+                          <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 13 }}>{fmtDate(ex.submitted_at)}</td>
+                          <td style={{ padding: '12px 16px', color: '#374151', fontSize: 13 }}>{ex.notice_period_days} days</td>
+                          <td style={{ padding: '12px 16px', fontWeight: 600, color: '#92400e', fontSize: 13 }}>{fmtDate(ex.last_working_day)}</td>
+                          <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 13, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ex.reason || '—'}</td>
+                          <td style={{ padding: '12px 16px' }}>
+                            <button
+                              onClick={() => handleVpAccept(ex.id)}
+                              disabled={acceptingVp === ex.id}
+                              style={{ padding: '5px 14px', borderRadius: 6, border: 'none', background: '#16a34a', color: '#fff', fontWeight: 600, fontSize: 12, cursor: 'pointer', opacity: acceptingVp === ex.id ? 0.6 : 1 }}
+                            >
+                              {acceptingVp === ex.id ? 'Approving…' : 'Approve'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Exit History section */}
+            {otherExits.length > 0 && (
+              <div>
+                <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 700, color: '#374151' }}>
+                  Exit History ({otherExits.length})
+                </h3>
+                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                    <thead>
+                      <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+                        {['Employee', 'Reporting Manager', 'Submitted', 'Last Working Day', 'Status'].map(h => (
+                          <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#374151', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {otherExits.map((ex, i) => {
+                        const st = EXIT_STATUS_LABELS[ex.status] ?? EXIT_STATUS_LABELS.pending_manager;
+                        return (
+                          <tr key={ex.id} style={{ borderBottom: i < otherExits.length - 1 ? '1px solid #f3f4f6' : 'none' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                            <td style={{ padding: '12px 16px' }}>
+                              <div style={{ fontWeight: 600, color: '#111827' }}>{ex.employee_name}</div>
+                              <div style={{ fontSize: 12, color: '#9ca3af' }}>{ex.designation} {ex.emp_id ? `· ${ex.emp_id}` : ''}</div>
+                            </td>
+                            <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 13 }}>{ex.reporting_manager_name || '—'}</td>
+                            <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 13 }}>{fmtDate(ex.submitted_at)}</td>
+                            <td style={{ padding: '12px 16px', fontWeight: 600, color: '#92400e', fontSize: 13 }}>{fmtDate(ex.last_working_day)}</td>
+                            <td style={{ padding: '12px 16px' }}>
+                              <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 500, background: st.bg, color: st.color }}>
+                                {st.label}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )
       )}
+
       <Modal open={showAddForm} onClose={() => setShowAddForm(false)} title="Add Employee">
         <CreateEmployeeForm onSuccess={() => { setShowAddForm(false); fetchEmployees(); }} />
       </Modal>
@@ -425,18 +583,27 @@ export default function EmployeesPage() {
                   value={editForm.project ?? ''} onChange={e => setEditForm(f => ({ ...f, project: e.target.value }))} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
                 <input className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  value={editForm.location ?? ''} onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))} />
+                  placeholder="e.g. Engineering"
+                  value={editForm.department ?? ''} onChange={e => setEditForm(f => ({ ...f, department: e.target.value }))} />
               </div>
             </div>
             {/* Row 3b */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                <input className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  value={editForm.location ?? ''} onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))} />
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
                 <input className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   value={editForm.state ?? ''} onChange={e => setEditForm(f => ({ ...f, state: e.target.value }))} />
               </div>
+            </div>
+            {/* Row 3c */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Site/Office</label>
                 <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
@@ -447,7 +614,7 @@ export default function EmployeesPage() {
                 </select>
               </div>
             </div>
-            {/* Row 3c */}
+            {/* Row 3d */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Designation</label>
@@ -460,6 +627,17 @@ export default function EmployeesPage() {
                 <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   value={editForm.role ?? 'employee'} onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))}>
                   {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                </select>
+              </div>
+            </div>
+            {/* Level row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
+                <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  value={editForm.level ?? 'APM Below'} onChange={e => setEditForm(f => ({ ...f, level: e.target.value }))}>
+                  <option value="APM Below">APM Below</option>
+                  <option value="APM Above">APM Above</option>
                 </select>
               </div>
             </div>

@@ -28,6 +28,8 @@ export function createEmployee(data: {
   site_office?: string;
   designation?: string;
   status?: string;
+  level?: string;
+  department?: string;
 }) {
   return apiFetch<AuthUser>('/api/auth/create-employee', {
     method: 'POST',

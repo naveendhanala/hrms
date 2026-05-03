@@ -4,7 +4,7 @@ import { authenticateToken, requireRole, AuthRequest } from '../../middleware/au
 
 const router = Router();
 
-router.get('/:courseId/questions', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.get('/:courseId/questions', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const questions = await db.query(
     'SELECT * FROM questions WHERE course_id = ? ORDER BY id',
     [req.params.courseId],
@@ -12,7 +12,7 @@ router.get('/:courseId/questions', authenticateToken, requireRole('admin', 'hr')
   res.json(questions);
 });
 
-router.post('/:courseId/questions', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.post('/:courseId/questions', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const course = await db.queryOne('SELECT id FROM courses WHERE id = ?', [req.params.courseId]);
   if (!course) return res.status(404).json({ error: 'Course not found' });
 
@@ -29,7 +29,7 @@ router.post('/:courseId/questions', authenticateToken, requireRole('admin', 'hr'
   res.status(201).json(await db.queryOne('SELECT * FROM questions WHERE id = ?', [result.lastInsertRowid]));
 });
 
-router.put('/:courseId/questions/:id', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.put('/:courseId/questions/:id', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const existing = await db.queryOne(
     'SELECT * FROM questions WHERE id = ? AND course_id = ?',
     [req.params.id, req.params.courseId],
@@ -55,7 +55,7 @@ router.put('/:courseId/questions/:id', authenticateToken, requireRole('admin', '
   res.json(await db.queryOne('SELECT * FROM questions WHERE id = ?', [req.params.id]));
 });
 
-router.delete('/:courseId/questions/:id', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.delete('/:courseId/questions/:id', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const result = await db.run(
     'DELETE FROM questions WHERE id = ? AND course_id = ?',
     [req.params.id, req.params.courseId],

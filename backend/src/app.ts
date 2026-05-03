@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import { ensureInit } from './db';
 import authRoutes from './routes/auth';
 import atsPositionsRoutes from './routes/ats/positions';
@@ -19,14 +20,17 @@ import taxComputationRoutes from './routes/taxComputation';
 import announcementsRoutes from './routes/announcements';
 import kbArticlesRoutes from './routes/kb/articles';
 import kbSubcontractorsRoutes from './routes/kb/subcontractors';
+import exitRoutes from './routes/exit';
 import { runMarkAbsent } from './jobs/markAbsent';
 import { runCreditLeaves, runResetLeaves } from './jobs/creditLeaves';
+import { runMarkExited } from './jobs/markExited';
 import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Ensure DB schema is ready before handling any request
 app.use((_req, _res, next) => {
@@ -45,6 +49,9 @@ app.use('/api/ats/config', atsConfigRoutes);
 
 // Users / Employees module
 app.use('/api/users', usersRoutes);
+
+// Exit Management module
+app.use('/api/exit', exitRoutes);
 
 // Payroll module
 app.use('/api/payroll', payrollRoutes);
@@ -102,6 +109,15 @@ app.get('/api/cron/reset-leaves', verifyCron, async (_req, res) => {
   try {
     await runResetLeaves();
     res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/cron/mark-exited', verifyCron, async (_req, res) => {
+  try {
+    const changes = await runMarkExited();
+    res.json({ ok: true, changes });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

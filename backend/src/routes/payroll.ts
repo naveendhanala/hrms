@@ -9,7 +9,7 @@ function getDaysInMonth(month: number, year: number): number {
   return new Date(year, month, 0).getDate();
 }
 
-router.get('/salary-master', authenticateToken, requireRole('admin', 'hr'), async (_req: AuthRequest, res: Response) => {
+router.get('/salary-master', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (_req: AuthRequest, res: Response) => {
   const rows = await db.query(`
     SELECT u.id AS employee_id, u.emp_id, u.name AS employee_name, u.role AS employee_role, u.designation AS employee_designation,
            COALESCE(s.basic_salary,       0) AS basic_salary,
@@ -27,7 +27,7 @@ router.get('/salary-master', authenticateToken, requireRole('admin', 'hr'), asyn
   res.json(rows);
 });
 
-router.put('/salary-master/:userId', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.put('/salary-master/:userId', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { basic_salary, hra, meal_allowance, conveyance_allowance, special_allowance, deductions } = req.body;
   const now = new Date().toISOString();
 
@@ -59,7 +59,7 @@ router.put('/salary-master/:userId', authenticateToken, requireRole('admin', 'hr
   res.json({ ok: true });
 });
 
-router.get('/', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.get('/', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const now = new Date();
   const month = req.query.month ? Number(req.query.month) : now.getMonth() + 1;
   const year  = req.query.year  ? Number(req.query.year)  : now.getFullYear();
@@ -87,7 +87,7 @@ router.get('/', authenticateToken, requireRole('admin', 'hr'), async (req: AuthR
   res.json({ ...run, records });
 });
 
-router.get('/history', authenticateToken, requireRole('admin', 'hr'), async (_req: AuthRequest, res: Response) => {
+router.get('/history', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (_req: AuthRequest, res: Response) => {
   const runs = await db.query(`
     SELECT pr.*, u.name as created_by_name,
            COUNT(r.id) as employee_count,
@@ -217,7 +217,7 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
   }
 }
 
-router.post('/', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.post('/', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { month, year } = req.body;
   if (!month || !year) return res.status(400).json({ error: 'month and year are required' });
 
@@ -235,7 +235,7 @@ router.post('/', authenticateToken, requireRole('admin', 'hr'), async (req: Auth
   res.status(201).json({ id: run.lastInsertRowid, month, year, status: 'draft' });
 });
 
-router.post('/:runId/regenerate', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.post('/:runId/regenerate', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const run = await db.queryOne<any>('SELECT * FROM payroll_runs WHERE id = ?', [req.params.runId]);
   if (!run) return res.status(404).json({ error: 'Payroll run not found' });
   if (run.status !== 'draft') return res.status(400).json({ error: 'Only draft runs can be regenerated' });
@@ -248,7 +248,7 @@ router.post('/:runId/regenerate', authenticateToken, requireRole('admin', 'hr'),
   res.json({ ok: true });
 });
 
-router.put('/records/:recordId', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.put('/records/:recordId', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { basic_salary, allowances, deductions } = req.body;
   const now = new Date().toISOString();
 
@@ -268,7 +268,7 @@ router.put('/records/:recordId', authenticateToken, requireRole('admin', 'hr'), 
   res.json({ ok: true });
 });
 
-router.patch('/:runId/status', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.patch('/:runId/status', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { status } = req.body;
   const allowed = ['draft', 'processed', 'paid'];
   if (!allowed.includes(status)) return res.status(400).json({ error: 'Invalid status' });
@@ -314,7 +314,7 @@ router.patch('/:runId/status', authenticateToken, requireRole('admin', 'hr'), as
   res.json({ ok: true });
 });
 
-router.get('/config', authenticateToken, requireRole('admin', 'hr'), async (_req: AuthRequest, res: Response) => {
+router.get('/config', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (_req: AuthRequest, res: Response) => {
   const rows = await db.query<{ key: string; value: string }>('SELECT key, value FROM payroll_config');
   const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
   res.json({
@@ -323,7 +323,7 @@ router.get('/config', authenticateToken, requireRole('admin', 'hr'), async (_req
   });
 });
 
-router.put('/config', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.put('/config', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { prof_tax_amount, tds_percentage } = req.body;
   const now = new Date().toISOString();
   const upsert = `
@@ -354,7 +354,7 @@ const DEFAULT_TDS_SLABS = {
   ],
 };
 
-router.get('/tds-slabs', authenticateToken, requireRole('admin', 'hr'), async (_req: AuthRequest, res: Response) => {
+router.get('/tds-slabs', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (_req: AuthRequest, res: Response) => {
   const rows = await db.query<{ key: string; value: string }>(
     "SELECT key, value FROM payroll_config WHERE key IN ('tds_slabs_old', 'tds_slabs_new')",
   );
@@ -365,7 +365,7 @@ router.get('/tds-slabs', authenticateToken, requireRole('admin', 'hr'), async (_
   });
 });
 
-router.put('/tds-slabs', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.put('/tds-slabs', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { regime, slabs } = req.body;
   if (!['old', 'new'].includes(regime) || !Array.isArray(slabs))
     return res.status(400).json({ error: 'regime ("old"|"new") and slabs array are required' });
@@ -379,7 +379,7 @@ router.put('/tds-slabs', authenticateToken, requireRole('admin', 'hr'), async (r
 });
 
 // Returns all unique states from employees with their configured prof tax amounts
-router.get('/prof-tax-states', authenticateToken, requireRole('admin', 'hr'), async (_req: AuthRequest, res: Response) => {
+router.get('/prof-tax-states', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (_req: AuthRequest, res: Response) => {
   const states = await db.query<{ state: string }>(
     "SELECT DISTINCT state FROM users WHERE state IS NOT NULL AND state != '' AND role != 'admin' ORDER BY state ASC",
   );
@@ -389,7 +389,7 @@ router.get('/prof-tax-states', authenticateToken, requireRole('admin', 'hr'), as
 });
 
 // Upsert prof tax amount for a specific state
-router.put('/prof-tax-states', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.put('/prof-tax-states', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { state, amount } = req.body;
   if (!state || amount === undefined) return res.status(400).json({ error: 'state and amount are required' });
   const now = new Date().toISOString();

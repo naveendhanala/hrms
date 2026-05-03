@@ -48,3 +48,20 @@ export function approveOffer(id: string) {
 export function rejectOffer(id: string) {
   return apiFetch<Candidate>(`${BASE}/${id}/reject-offer`, { method: 'POST' });
 }
+
+export function uploadCandidateResume(id: string, file: File) {
+  const fd = new FormData();
+  fd.append('resume', file);
+  const token = localStorage.getItem('hrms_token');
+  return fetch(`${BASE}/${id}/resume`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: fd,
+  }).then(async (res) => {
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as Record<string, unknown>;
+      throw new Error(String(body.error ?? 'Upload failed'));
+    }
+    return res.json() as Promise<{ resume_url: string }>;
+  });
+}

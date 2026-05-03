@@ -3,15 +3,13 @@ import AppLayout from '../../components/shared/AppLayout';
 import CandidateList from '../../components/ats/hr/CandidateList';
 import PipelineView from '../../components/ats/hr/PipelineView';
 import ReportView from '../../components/ats/hr/ReportView';
-import HRPositionList from '../../components/ats/hr/HRPositionList';
 import YetToJoin from '../../components/ats/hr/YetToJoin';
 
-type Tab = 'candidates' | 'pipeline' | 'positions' | 'yettojoin' | 'reports';
+type Tab = 'candidates' | 'pipeline' | 'yettojoin' | 'reports';
 
 const TAB_LABELS: Record<Tab, string> = {
   candidates: 'Profile Tracker',
   pipeline: 'Requirement List',
-  positions: 'Positions',
   yettojoin: 'Yet to Join',
   reports: 'Reports',
 };
@@ -37,7 +35,6 @@ export default function HRPage() {
 
       {tab === 'candidates' && <CandidateList />}
       {tab === 'pipeline' && <PipelineView />}
-      {tab === 'positions' && <HRPositionList />}
       {tab === 'yettojoin' && <YetToJoin />}
       {tab === 'reports' && <ReportView />}
     </AppLayout>

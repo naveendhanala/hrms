@@ -4,7 +4,7 @@ import { authenticateToken, requireRole, AuthRequest } from '../../middleware/au
 
 const router = Router();
 
-router.get('/completions', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.get('/completions', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { course_id, user_id } = req.query;
 
   // When filtering by a specific user or course, skip the CROSS JOIN and query
@@ -45,7 +45,7 @@ router.get('/completions', authenticateToken, requireRole('admin', 'hr'), async 
   res.json(rows);
 });
 
-router.get('/employees', authenticateToken, requireRole('admin', 'hr'), async (_req: AuthRequest, res: Response) => {
+router.get('/employees', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (_req: AuthRequest, res: Response) => {
   const employees = await db.query(
     "SELECT id, username, email, name, role FROM users WHERE role = 'employee' ORDER BY name",
   );

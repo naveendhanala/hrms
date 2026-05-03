@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { getMyReportees } from '../../api/users';
 import type { UserRole } from '../../types';
 
 const MODULE_ROUTES: Record<string, Record<UserRole, string>> = {
@@ -11,6 +12,7 @@ const MODULE_ROUTES: Record<string, Record<UserRole, string>> = {
     projectlead: '/kb',
     businesshead: '/kb',
     employee: '/kb',
+    vp_hr: '/kb',
   },
   DASHBOARD: {
     admin: '/dashboard',
@@ -19,6 +21,7 @@ const MODULE_ROUTES: Record<string, Record<UserRole, string>> = {
     projectlead: '/dashboard',
     businesshead: '/dashboard',
     employee: '/dashboard',
+    vp_hr: '/dashboard',
   },
   EMPLOYEES: {
     admin: '/employees',
@@ -27,6 +30,7 @@ const MODULE_ROUTES: Record<string, Record<UserRole, string>> = {
     projectlead: '/employees',
     businesshead: '/employees',
     employee: '/employees',
+    vp_hr: '/employees',
   },
   ATS: {
     admin: '/ats/admin',
@@ -35,6 +39,7 @@ const MODULE_ROUTES: Record<string, Record<UserRole, string>> = {
     projectlead: '/ats/project-lead',
     businesshead: '/ats/business-head',
     employee: '/lms',
+    vp_hr: '/ats/hr',
   },
   LMS: {
     admin: '/lms/admin',
@@ -43,6 +48,7 @@ const MODULE_ROUTES: Record<string, Record<UserRole, string>> = {
     projectlead: '/lms',
     businesshead: '/lms',
     employee: '/lms',
+    vp_hr: '/lms/admin',
   },
   ATTENDANCE: {
     admin: '/attendance',
@@ -51,6 +57,7 @@ const MODULE_ROUTES: Record<string, Record<UserRole, string>> = {
     projectlead: '/attendance',
     businesshead: '/attendance',
     employee: '/attendance',
+    vp_hr: '/attendance',
   },
   PAYROLL: {
     admin: '/payroll',
@@ -59,17 +66,19 @@ const MODULE_ROUTES: Record<string, Record<UserRole, string>> = {
     projectlead: '/payroll',
     businesshead: '/payroll',
     employee: '/payroll',
+    vp_hr: '/payroll',
   },
+
 };
 
 const MODULE_ACCESS: Record<string, UserRole[]> = {
-  KB:         ['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee'],
-  DASHBOARD:  ['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee'],
-  EMPLOYEES:  ['admin', 'hr'],
-  ATS:        ['admin', 'hr', 'director', 'projectlead', 'businesshead'],
-  LMS:        ['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee'],
-  ATTENDANCE: ['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee'],
-  PAYROLL:    ['admin', 'hr'],
+  KB:         ['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee', 'vp_hr'],
+  DASHBOARD:  ['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee', 'vp_hr'],
+  EMPLOYEES:  ['admin', 'hr', 'vp_hr'],
+  ATS:        ['admin', 'hr', 'vp_hr', 'director', 'projectlead', 'businesshead'],
+  LMS:        ['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee', 'vp_hr'],
+  ATTENDANCE: ['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee', 'vp_hr'],
+  PAYROLL:    ['admin', 'hr', 'vp_hr'],
 };
 
 const NAV_ITEMS = [
@@ -90,6 +99,29 @@ export default function AppLayout({ children }: Props) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [hasReportees, setHasReportees] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    getMyReportees().then(r => setHasReportees(r.length > 0)).catch(() => {});
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!showProfileMenu) return;
+    const handle = (e: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    };
+    // Use setTimeout so the click that opened the menu doesn't immediately close it
+    const timer = setTimeout(() => document.addEventListener('mousedown', handle), 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', handle);
+    };
+  }, [showProfileMenu]);
 
   if (!user) return null;
 
@@ -110,6 +142,12 @@ export default function AppLayout({ children }: Props) {
     ? 'KB'
     : location.pathname.startsWith('/lms')
     ? 'LMS'
+    : location.pathname.startsWith('/my-reportees')
+    ? 'MANAGE_REPORTEES'
+    : location.pathname === '/profile'
+    ? 'PROFILE'
+    : location.pathname === '/my-resignation'
+    ? 'MY_RESIGNATION'
     : 'ATS';
 
   const isSalaryMaster    = location.pathname === '/payroll/salary-master';
@@ -266,6 +304,43 @@ export default function AppLayout({ children }: Props) {
             );
           })}
 
+          {/* Manage Reportees — only visible when user has direct reports */}
+          {hasReportees && (() => {
+            const isActive = activeModule === 'MANAGE_REPORTEES';
+            return (
+              <button
+                onClick={() => navigate('/my-reportees')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: 8,
+                  border: 'none',
+                  cursor: 'pointer',
+                  marginBottom: 2,
+                  background: isActive ? '#ede9fe' : 'transparent',
+                  color: isActive ? '#6d28d9' : '#4b5563',
+                  fontWeight: isActive ? 600 : 500,
+                  fontSize: 14,
+                  textAlign: 'left',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = '#f9fafb'; }}
+                onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  <path d="M21 21v-2a4 4 0 0 0-3-3.87" />
+                </svg>
+                Manage Reportees
+              </button>
+            );
+          })()}
+
           {/* Salary Master sub-item — only visible when Payroll section is active */}
           {activeModule === 'PAYROLL' && MODULE_ACCESS['PAYROLL']?.includes(user.role) && (
             <>
@@ -391,58 +466,92 @@ export default function AppLayout({ children }: Props) {
         </nav>
 
         {/* User at bottom */}
-        <div
-          style={{
-            margin: '0 12px',
-            padding: '12px',
-            borderTop: '1px solid #f3f4f6',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-          }}
-        >
+        <div ref={profileMenuRef} style={{ margin: '0 12px', position: 'relative' }}>
+          {/* Profile popover */}
+          {showProfileMenu && (
+            <div style={{
+              position: 'absolute', bottom: 68, left: 0, right: 0,
+              background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 100, overflow: 'hidden',
+            }}>
+              <button
+                onClick={() => { navigate('/profile'); setShowProfileMenu(false); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: '#374151', fontWeight: 500, textAlign: 'left' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#f9fafb')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></svg>
+                My Profile
+              </button>
+              <button
+                onClick={() => { navigate('/my-resignation'); setShowProfileMenu(false); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: '#374151', fontWeight: 500, textAlign: 'left' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#f9fafb')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+                My Resignation
+              </button>
+            </div>
+          )}
+
           <div
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              padding: '12px',
+              borderTop: '1px solid #f3f4f6',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontWeight: 700,
-              fontSize: 12,
-              flexShrink: 0,
+              gap: 10,
             }}
           >
-            {initials}
+            <button
+              onClick={() => setShowProfileMenu(prev => !prev)}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+            >
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  flexShrink: 0,
+                }}
+              >
+                {initials}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {user.name}
+                </p>
+                <p style={{ margin: 0, fontSize: 11, color: '#9ca3af' }}>{user.designation || user.role}</p>
+              </div>
+            </button>
+            <button
+              onClick={handleLogout}
+              title="Sign out"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#9ca3af',
+                padding: 4,
+                borderRadius: 4,
+                display: 'flex',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+            </button>
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {user.name}
-            </p>
-            <p style={{ margin: 0, fontSize: 11, color: '#9ca3af' }}>{user.designation || user.role}</p>
-          </div>
-          <button
-            onClick={handleLogout}
-            title="Sign out"
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: '#9ca3af',
-              padding: 4,
-              borderRadius: 4,
-              display: 'flex',
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-          </button>
         </div>
       </aside>
 
@@ -464,13 +573,16 @@ export default function AppLayout({ children }: Props) {
           }}
         >
           <h1 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#111827' }}>
-            {activeModule === 'DASHBOARD'   ? 'Dashboard'
-            : activeModule === 'EMPLOYEES'  ? 'Employees'
-            : activeModule === 'PAYROLL'    ? (isSalaryMaster ? 'Salary Master' : isAdvances ? 'Advances' : isTaxComputation ? 'Tax Computation' : isConfigurations ? 'Configurations' : 'Payroll')
-            : activeModule === 'ATS'        ? 'Applicant Tracking System'
-            : activeModule === 'ATTENDANCE' ? 'Attendance Management'
-            : activeModule === 'KB'         ? 'Knowledge Base'
-            :                                 'Learning Management System'}
+            {activeModule === 'DASHBOARD'        ? 'Dashboard'
+            : activeModule === 'EMPLOYEES'       ? 'Employees'
+            : activeModule === 'PAYROLL'         ? (isSalaryMaster ? 'Salary Master' : isAdvances ? 'Advances' : isTaxComputation ? 'Tax Computation' : isConfigurations ? 'Configurations' : 'Payroll')
+            : activeModule === 'ATS'             ? 'Applicant Tracking System'
+            : activeModule === 'ATTENDANCE'      ? 'Attendance Management'
+            : activeModule === 'KB'              ? 'Knowledge Base'
+            : activeModule === 'MANAGE_REPORTEES'? 'Manage Reportees'
+            : activeModule === 'PROFILE'         ? 'My Profile'
+            : activeModule === 'MY_RESIGNATION'  ? 'My Resignation'
+            :                                      'Learning Management System'}
           </h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {/* Bell */}

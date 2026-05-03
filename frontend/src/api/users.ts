@@ -7,9 +7,11 @@ export interface Employee {
   email: string;
   name: string;
   role: string;
+  level: string;
   dob: string | null;
   date_of_joining: string | null;
   project: string;
+  department: string;
   location: string;
   state: string;
   site_office: string;
@@ -34,13 +36,33 @@ export interface EmployeeUpdate {
   dob?: string;
   date_of_joining?: string;
   project?: string;
+  department?: string;
   location?: string;
   state?: string;
   site_office?: string;
   designation?: string;
   status?: string;
   reporting_manager_id?: number | null;
+  level?: string;
 }
+
+export interface Reportee {
+  id: number;
+  emp_id: string | null;
+  name: string;
+  email: string;
+  role: string;
+  designation: string;
+  project: string;
+  department: string;
+  location: string;
+  site_office: string;
+  status: string;
+  date_of_joining: string | null;
+}
+
+export const getMyReportees = () =>
+  apiFetch<Reportee[]>('/api/users/my-reportees');
 
 export const getEmployees = () =>
   apiFetch<Employee[]>('/api/users');
@@ -62,3 +84,6 @@ export const updateReportingManager = (userId: number, managerId: number | null)
     method: 'PATCH',
     body: JSON.stringify({ reporting_manager_id: managerId }),
   });
+
+export const getMe = () =>
+  apiFetch<Employee & { level: string; reporting_manager_name: string | null }>('/api/users/me');

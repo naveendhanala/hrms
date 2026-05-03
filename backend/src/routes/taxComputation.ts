@@ -163,7 +163,7 @@ export function computeAnnualTax(
   };
 }
 
-router.get('/', authenticateToken, requireRole('admin', 'hr'), async (_req: AuthRequest, res: Response) => {
+router.get('/', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (_req: AuthRequest, res: Response) => {
   const employees = await db.query<any>(`
     SELECT u.id, u.emp_id, u.name, u.designation, u.date_of_joining,
            COALESCE(s.basic_salary,      0) AS basic_salary,
@@ -220,7 +220,7 @@ router.get('/', authenticateToken, requireRole('admin', 'hr'), async (_req: Auth
   res.json(result);
 });
 
-router.put('/:employeeId/regime', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.put('/:employeeId/regime', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { regime } = req.body;
   if (!['old', 'new'].includes(regime))
     return res.status(400).json({ error: 'regime must be "old" or "new"' });

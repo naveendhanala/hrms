@@ -4,7 +4,7 @@ import { authenticateToken, requireRole, AuthRequest } from '../middleware/auth'
 
 const router = Router();
 
-router.get('/', authenticateToken, requireRole('admin', 'hr'), async (_req: AuthRequest, res: Response) => {
+router.get('/', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (_req: AuthRequest, res: Response) => {
   const rows = await db.query(`
     SELECT a.*, u.name AS employee_name, u.emp_id
     FROM employee_advances a
@@ -14,7 +14,7 @@ router.get('/', authenticateToken, requireRole('admin', 'hr'), async (_req: Auth
   res.json(rows);
 });
 
-router.post('/', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.post('/', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { employee_id, amount, months } = req.body;
   if (!employee_id || !amount || !months)
     return res.status(400).json({ error: 'employee_id, amount, and months are required' });
@@ -31,7 +31,7 @@ router.post('/', authenticateToken, requireRole('admin', 'hr'), async (req: Auth
   res.status(201).json({ id: result.lastInsertRowid });
 });
 
-router.put('/:id', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { amount, months } = req.body;
   if (!amount || !months)
     return res.status(400).json({ error: 'amount and months are required' });
@@ -53,7 +53,7 @@ router.put('/:id', authenticateToken, requireRole('admin', 'hr'), async (req: Au
   res.json({ ok: true });
 });
 
-router.delete('/:id', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.delete('/:id', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const advance = await db.queryOne<any>('SELECT * FROM employee_advances WHERE id = ?', [req.params.id]);
   if (!advance) return res.status(404).json({ error: 'Advance not found' });
   if (Number(advance.recovered) > 0)

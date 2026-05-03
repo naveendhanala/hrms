@@ -115,7 +115,48 @@ async function _runMigrations(): Promise<void> {
     pool.query(`ALTER TABLE candidates ALTER COLUMN candidate_current_role DROP NOT NULL`),
     pool.query(`ALTER TABLE candidates DROP CONSTRAINT IF EXISTS candidates_mobile_key`),
     pool.query(`ALTER TABLE candidates DROP COLUMN IF EXISTS offer_approval_status`),
+    pool.query(`ALTER TABLE candidates ADD COLUMN IF NOT EXISTS resume_url TEXT`),
+    pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS level TEXT NOT NULL DEFAULT 'APM Below'`),
+    pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS department TEXT NOT NULL DEFAULT ''`),
+    pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id)`),
+    pool.query(`ALTER TABLE exit_requests ADD COLUMN IF NOT EXISTS replacement_job_id TEXT`),
+    pool.query(`ALTER TABLE candidates ADD COLUMN IF NOT EXISTS education TEXT NOT NULL DEFAULT '[]'`),
+    pool.query(`ALTER TABLE candidates ADD COLUMN IF NOT EXISTS work_experience TEXT NOT NULL DEFAULT '[]'`),
+    pool.query(`CREATE TABLE IF NOT EXISTS exit_requests (
+  id                    SERIAL PRIMARY KEY,
+  employee_id           INTEGER NOT NULL REFERENCES users(id),
+  submitted_at          TEXT NOT NULL DEFAULT '',
+  notice_period_days    INTEGER NOT NULL DEFAULT 60,
+  last_working_day      TEXT NOT NULL DEFAULT '',
+  reason                TEXT NOT NULL DEFAULT '',
+  status                TEXT NOT NULL DEFAULT 'pending_manager',
+  manager_accepted_at   TEXT,
+  manager_accepted_by   INTEGER REFERENCES users(id),
+  vp_accepted_at        TEXT,
+  vp_accepted_by        INTEGER REFERENCES users(id),
+  revoked_at            TEXT
+)`),
   ]);
+
+  // Update role constraint to include vp_hr — drop any existing role check by dynamic name lookup
+  await pool.query(`
+    DO $$
+    DECLARE
+      cname TEXT;
+    BEGIN
+      SELECT tc.constraint_name INTO cname
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.check_constraints cc ON tc.constraint_name = cc.constraint_name
+      WHERE tc.table_name = 'users' AND tc.table_schema = 'public'
+        AND cc.check_clause LIKE '%role%';
+      IF cname IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE users DROP CONSTRAINT IF EXISTS %I', cname);
+      END IF;
+      ALTER TABLE users ADD CONSTRAINT users_role_check
+        CHECK(role IN ('admin','hr','director','projectlead','businesshead','employee','vp_hr'));
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$
+  `);
 
   // Seed default dept-roles if table is empty
   const deptCount = await pool.query('SELECT 1 FROM ats_dept_roles LIMIT 1');
@@ -210,7 +251,7 @@ async function _init(): Promise<void> {
       email         TEXT    NOT NULL UNIQUE,
       name          TEXT    NOT NULL,
       password_hash TEXT    NOT NULL,
-      role          TEXT    NOT NULL CHECK(role IN ('admin','hr','director','projectlead','businesshead','employee')),
+      role          TEXT    NOT NULL CHECK(role IN ('admin','hr','director','projectlead','businesshead','employee','vp_hr')),
       site_office   TEXT    NOT NULL DEFAULT '',
       created_at    TEXT    NOT NULL DEFAULT ''
     )

@@ -40,10 +40,10 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res: Response) => 
   res.json(user);
 });
 
-router.post('/create-employee', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.post('/create-employee', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const {
     username, email, password, name, role, reporting_manager_id,
-    emp_id, dob, date_of_joining, project, location, state, site_office, designation, status,
+    emp_id, dob, date_of_joining, project, location, state, site_office, designation, status, level, department,
   } = req.body;
 
   if (!username || !email || !password || !name) {
@@ -58,12 +58,12 @@ router.post('/create-employee', authenticateToken, requireRole('admin', 'hr'), a
 
   const result = await db.run(
     `INSERT INTO users (username, email, password_hash, name, role, reporting_manager_id,
-       emp_id, dob, date_of_joining, project, location, state, site_office, designation, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+       emp_id, dob, date_of_joining, project, location, state, site_office, designation, status, level, department)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
     [
       username, email, hashedPassword, name, userRole, reporting_manager_id ?? null,
       emp_id ?? null, dob ?? null, date_of_joining ?? null,
-      project ?? '', location ?? '', state ?? '', site_office ?? '', designation ?? '', status ?? 'active',
+      project ?? '', location ?? '', state ?? '', site_office ?? '', designation ?? '', status ?? 'active', level ?? 'APM Below', department ?? '',
     ],
   );
 

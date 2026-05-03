@@ -8,7 +8,7 @@ const router = Router();
 router.get('/my-candidates', authenticateToken, async (req: AuthRequest, res: Response) => {
   const name = req.user!.name;
   const cols = `c.id, c.name, c.mobile, c.job_id, c.stage, c.interviewer, c.feedback,
-                c.sourcing_date, c.interview_done_date,
+                c.sourcing_date, c.interview_done_date, c.resume_url,
                 p.role, p.project, p.department`;
 
   const [pending, completed] = await Promise.all([

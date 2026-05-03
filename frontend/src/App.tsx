@@ -40,7 +40,10 @@ const WatchPage          = lazy(() => import('./pages/lms/WatchPage'));
 const QuizPage           = lazy(() => import('./pages/lms/QuizPage'));
 const LmsAdminDashboard  = lazy(() => import('./pages/lms/admin/AdminDashboard'));
 const ManageCoursePage   = lazy(() => import('./pages/lms/admin/ManageCoursePage'));
-const LmsReportPage      = lazy(() => import('./pages/lms/admin/ReportPage'));
+const LmsReportPage         = lazy(() => import('./pages/lms/admin/ReportPage'));
+const ManageReporteesPage   = lazy(() => import('./pages/ManageReporteesPage'));
+const MyProfilePage         = lazy(() => import('./pages/MyProfilePage'));
+const MyResignationPage     = lazy(() => import('./pages/MyResignationPage'));
 
 function PageLoader() {
   return <div style={{ padding: 40, color: '#9ca3af', fontSize: 14 }}>Loading…</div>;
@@ -54,31 +57,36 @@ export default function App() {
         <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee']}><Dashboard /></ProtectedRoute>} />
-          <Route path="/attendance" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee']}><AttendancePage /></ProtectedRoute>} />
-          <Route path="/employees" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><EmployeesPage /></ProtectedRoute>} />
-          <Route path="/payroll" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><PayrollPage /></ProtectedRoute>} />
-          <Route path="/payroll/salary-master" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><SalaryMasterPage /></ProtectedRoute>} />
-          <Route path="/payroll/advances" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><AdvancesPage /></ProtectedRoute>} />
-          <Route path="/payroll/tax-computation" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><TaxComputationPage /></ProtectedRoute>} />
-          <Route path="/payroll/configurations" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><ConfigurationsPage /></ProtectedRoute>} />
+          <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee', 'vp_hr']}><Dashboard /></ProtectedRoute>} />
+          <Route path="/attendance" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee', 'vp_hr']}><AttendancePage /></ProtectedRoute>} />
+          <Route path="/employees" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'vp_hr']}><EmployeesPage /></ProtectedRoute>} />
+          <Route path="/payroll" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'vp_hr']}><PayrollPage /></ProtectedRoute>} />
+          <Route path="/payroll/salary-master" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'vp_hr']}><SalaryMasterPage /></ProtectedRoute>} />
+          <Route path="/payroll/advances" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'vp_hr']}><AdvancesPage /></ProtectedRoute>} />
+          <Route path="/payroll/tax-computation" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'vp_hr']}><TaxComputationPage /></ProtectedRoute>} />
+          <Route path="/payroll/configurations" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'vp_hr']}><ConfigurationsPage /></ProtectedRoute>} />
           {/* Knowledge Base */}
-          <Route path="/kb" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee']}><KnowledgeBasePage /></ProtectedRoute>} />
+          <Route path="/kb" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee', 'vp_hr']}><KnowledgeBasePage /></ProtectedRoute>} />
 
           {/* ATS routes */}
           <Route path="/ats/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminPage /></ProtectedRoute>} />
-          <Route path="/ats/hr" element={<ProtectedRoute allowedRoles={['hr']}><HRPage /></ProtectedRoute>} />
+          <Route path="/ats/hr" element={<ProtectedRoute allowedRoles={['hr', 'vp_hr']}><HRPage /></ProtectedRoute>} />
           <Route path="/ats/director" element={<ProtectedRoute allowedRoles={['director']}><DirectorPage /></ProtectedRoute>} />
           <Route path="/ats/project-lead" element={<ProtectedRoute allowedRoles={['projectlead']}><ProjectLeadPage /></ProtectedRoute>} />
           <Route path="/ats/business-head" element={<ProtectedRoute allowedRoles={['businesshead']}><BusinessHeadPage /></ProtectedRoute>} />
 
           {/* LMS routes */}
-          <Route path="/lms" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee']}><EmployeeDashboard /></ProtectedRoute>} />
-          <Route path="/lms/courses/:id/watch" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee']}><WatchPage /></ProtectedRoute>} />
-          <Route path="/lms/courses/:id/quiz" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee']}><QuizPage /></ProtectedRoute>} />
-          <Route path="/lms/admin" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><LmsAdminDashboard /></ProtectedRoute>} />
-          <Route path="/lms/admin/courses/:id" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><ManageCoursePage /></ProtectedRoute>} />
-          <Route path="/lms/admin/reports" element={<ProtectedRoute allowedRoles={['admin', 'hr']}><LmsReportPage /></ProtectedRoute>} />
+          <Route path="/lms" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee', 'vp_hr']}><EmployeeDashboard /></ProtectedRoute>} />
+          <Route path="/lms/courses/:id/watch" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee', 'vp_hr']}><WatchPage /></ProtectedRoute>} />
+          <Route path="/lms/courses/:id/quiz" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee', 'vp_hr']}><QuizPage /></ProtectedRoute>} />
+          <Route path="/lms/admin" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'vp_hr']}><LmsAdminDashboard /></ProtectedRoute>} />
+          <Route path="/lms/admin/courses/:id" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'vp_hr']}><ManageCoursePage /></ProtectedRoute>} />
+          <Route path="/lms/admin/reports" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'vp_hr']}><LmsReportPage /></ProtectedRoute>} />
+
+          <Route path="/my-reportees" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'vp_hr', 'director', 'projectlead', 'businesshead', 'employee']}><ManageReporteesPage /></ProtectedRoute>} />
+
+          <Route path="/profile" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee', 'vp_hr']}><MyProfilePage /></ProtectedRoute>} />
+          <Route path="/my-resignation" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee', 'vp_hr']}><MyResignationPage /></ProtectedRoute>} />
 
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />

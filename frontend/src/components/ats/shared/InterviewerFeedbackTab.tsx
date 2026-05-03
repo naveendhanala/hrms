@@ -11,6 +11,7 @@ interface AssignedCandidate {
   feedback: string;
   interview_done_date: string;
   sourcing_date: string;
+  resume_url: string | null;
   role: string;
   project: string;
   department: string;
@@ -239,7 +240,7 @@ export default function InterviewerFeedbackTab({ onPendingCount }: { onPendingCo
                 <table className="min-w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      {['Candidate', 'Mobile', 'Position', 'Sourcing Date', 'Days Pending', 'Stage', ''].map((h) => (
+                      {['Candidate', 'Mobile', 'Position', 'Resume', 'Sourcing Date', 'Days Pending', 'Stage', ''].map((h) => (
                         <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                       ))}
                     </tr>
@@ -250,6 +251,20 @@ export default function InterviewerFeedbackTab({ onPendingCount }: { onPendingCo
                         <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
                         <td className="px-4 py-3 text-gray-500">{c.mobile}</td>
                         <td className="px-4 py-3 text-gray-600">{c.project} / {c.role}</td>
+                        <td className="px-4 py-3">
+                          {c.resume_url ? (
+                            <a
+                              href={c.resume_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 underline"
+                            >
+                              View Resume
+                            </a>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-gray-500">{c.sourcing_date?.slice(0, 10) || '—'}</td>
                         <td className="px-4 py-3 text-gray-500">{c.sourcing_date ? `${daysPending(c.sourcing_date)}d` : '—'}</td>
                         <td className="px-4 py-3">
@@ -312,8 +327,22 @@ export default function InterviewerFeedbackTab({ onPendingCount }: { onPendingCo
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
-              <h2 className="text-lg font-semibold text-gray-900">Interview Feedback</h2>
-              <p className="text-sm text-gray-500 mt-0.5">{selected.name} · {selected.project} / {selected.role}</p>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Interview Feedback</h2>
+                  <p className="text-sm text-gray-500 mt-0.5">{selected.name} · {selected.project} / {selected.role}</p>
+                </div>
+                {selected.resume_url && (
+                  <a
+                    href={selected.resume_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100"
+                  >
+                    View Resume
+                  </a>
+                )}
+              </div>
             </div>
 
             {/* ── Part 1: Is Interview Completed? ── */}

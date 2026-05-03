@@ -42,7 +42,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res: Response) =>
   res.json(article);
 });
 
-router.post('/', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.post('/', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { title, content, category, tags } = req.body;
   if (!title) return res.status(400).json({ error: 'title is required' });
 
@@ -59,7 +59,7 @@ router.post('/', authenticateToken, requireRole('admin', 'hr'), async (req: Auth
   `, [result.lastInsertRowid]));
 });
 
-router.put('/:id', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const existing = await db.queryOne('SELECT id FROM kb_articles WHERE id = ?', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Article not found' });
 
@@ -84,7 +84,7 @@ router.put('/:id', authenticateToken, requireRole('admin', 'hr'), async (req: Au
   `, [req.params.id]));
 });
 
-router.delete('/:id', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.delete('/:id', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const existing = await db.queryOne('SELECT id FROM kb_articles WHERE id = ?', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Article not found' });
 

@@ -42,7 +42,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res: Response) =>
   res.json(row);
 });
 
-router.post('/', authenticateToken, requireRole('admin', 'hr', 'projectlead'), async (req: AuthRequest, res: Response) => {
+router.post('/', authenticateToken, requireRole('admin', 'hr', 'vp_hr', 'projectlead'), async (req: AuthRequest, res: Response) => {
   const { name, company, contact_person, email, phone, expertise, status, location, projects_worked, notes } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'name is required' });
 
@@ -62,7 +62,7 @@ router.post('/', authenticateToken, requireRole('admin', 'hr', 'projectlead'), a
   `, [result.lastInsertRowid]));
 });
 
-router.put('/:id', authenticateToken, requireRole('admin', 'hr', 'projectlead'), async (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticateToken, requireRole('admin', 'hr', 'vp_hr', 'projectlead'), async (req: AuthRequest, res: Response) => {
   const existing = await db.queryOne('SELECT id FROM subcontractors WHERE id = ?', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Sub-contractor not found' });
 
@@ -95,7 +95,7 @@ router.put('/:id', authenticateToken, requireRole('admin', 'hr', 'projectlead'),
   `, [req.params.id]));
 });
 
-router.delete('/:id', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.delete('/:id', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const existing = await db.queryOne('SELECT id FROM subcontractors WHERE id = ?', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Sub-contractor not found' });
 

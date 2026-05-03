@@ -1,7 +1,22 @@
 import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import path from 'path';
+import fs from 'fs';
+import multer from 'multer';
 import db from '../../db';
 import { authenticateToken, AuthRequest } from '../../middleware/auth';
+
+const uploadsDir = path.join(__dirname, '../../../uploads/resumes');
+fs.mkdirSync(uploadsDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: uploadsDir,
+  filename: (_req, file, cb) => {
+    const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    cb(null, `${Date.now()}-${safe}`);
+  },
+});
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 const router = Router();
 
@@ -61,7 +76,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res: Response) =>
 });
 
 router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const { name, mobile, alternate_mobile, job_id, interviewer, hr_spoc, email, candidate_current_role, current_company, experience, current_ctc, expected_ctc, notice_period, remarks } = req.body;
+  const { name, mobile, alternate_mobile, job_id, interviewer, hr_spoc, email, candidate_current_role, current_company, experience, current_ctc, expected_ctc, notice_period, remarks, education, work_experience } = req.body;
 
   if (!name || !mobile || !job_id || !interviewer || !hr_spoc) {
     return res.status(400).json({ error: 'name, mobile, job_id, interviewer, and hr_spoc are required' });
@@ -106,11 +121,12 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   const today = new Date().toISOString().split('T')[0];
 
   await db.run(
-    `INSERT INTO candidates (id, name, mobile, alternate_mobile, email, job_id, interviewer, hr_spoc, candidate_current_role, current_company, experience, current_ctc, expected_ctc, notice_period, remarks, stage, sourcing_date, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO candidates (id, name, mobile, alternate_mobile, email, job_id, interviewer, hr_spoc, candidate_current_role, current_company, experience, current_ctc, expected_ctc, notice_period, remarks, education, work_experience, stage, sourcing_date, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [id, name, normalizedMobile, alternate_mobile || null, email || null, job_id, interviewer, hr_spoc,
      candidate_current_role || null, current_company || null, experience || null, current_ctc || null,
      expected_ctc || null, notice_period || null, remarks || null,
+     education || '[]', work_experience || '[]',
      'Interview', today, now, now],
   );
 
@@ -159,7 +175,7 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res: Response) =>
     'candidate_current_role', 'current_company', 'experience', 'current_ctc', 'expected_ctc',
     'notice_period', 'remarks', 'stage', 'feedback', 'sourcing_date',
     'interview_done_date', 'offer_release_date', 'expected_joining_date', 'joined_date',
-    'offered_ctc', 'offer_notes',
+    'offered_ctc', 'offer_notes', 'education', 'work_experience',
   ];
 
   const setClauses: string[] = [];
@@ -231,6 +247,26 @@ router.post('/:id/reject-offer', authenticateToken, async (req: AuthRequest, res
   );
   if (result.rowsAffected === 0) return res.status(404).json({ error: 'Candidate not found' });
   res.json(await db.queryOne('SELECT * FROM candidates WHERE id = ?', [req.params.id]));
+});
+
+router.post('/:id/resume', authenticateToken, upload.single('resume'), async (req: AuthRequest, res: Response) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+  const candidate = await db.queryOne<any>('SELECT id, resume_url FROM candidates WHERE id = ?', [req.params.id]);
+  if (!candidate) {
+    fs.unlinkSync(req.file.path);
+    return res.status(404).json({ error: 'Candidate not found' });
+  }
+
+  // Delete old resume file if present
+  if (candidate.resume_url) {
+    const oldPath = path.join(__dirname, '../../../', candidate.resume_url);
+    fs.unlink(oldPath, () => {});
+  }
+
+  const resumeUrl = `/uploads/resumes/${req.file.filename}`;
+  await db.run('UPDATE candidates SET resume_url = ?, updated_at = ? WHERE id = ?', [resumeUrl, new Date().toISOString(), req.params.id]);
+  res.json({ resume_url: resumeUrl });
 });
 
 export default router;

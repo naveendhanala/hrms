@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { listCandidates, listCandidatesPaged, createCandidate, updateCandidate, requestOfferApproval } from '../../../api/ats-candidates';
+import { listCandidates, listCandidatesPaged, createCandidate, updateCandidate, requestOfferApproval, uploadCandidateResume } from '../../../api/ats-candidates';
 import { listPositions } from '../../../api/ats-positions';
 import type { Candidate } from '../../../types';
 import { STAGES } from '../../../types';
@@ -147,10 +147,11 @@ export default function CandidateList() {
     setPage(1);
   };
 
-  const handleCreate = async (data: Partial<Candidate>) => {
+  const handleCreate = async (data: Partial<Candidate>, resumeFile?: File) => {
     try {
       setCreateError('');
-      await createCandidate(data);
+      const created = await createCandidate(data);
+      if (resumeFile) await uploadCandidateResume(created.id, resumeFile).catch(() => {});
       setShowForm(false);
       load(1);
       setPage(1);
@@ -159,11 +160,12 @@ export default function CandidateList() {
     }
   };
 
-  const handleUpdate = async (data: Partial<Candidate>) => {
+  const handleUpdate = async (data: Partial<Candidate>, resumeFile?: File) => {
     if (!editing) return;
     try {
       setCreateError('');
       await updateCandidate(editing.id, data);
+      if (resumeFile) await uploadCandidateResume(editing.id, resumeFile).catch(() => {});
       setEditing(null);
       setShowForm(false);
       load();

@@ -11,7 +11,7 @@ router.get('/pipeline', authenticateToken, async (req: AuthRequest, res: Respons
 
   const rows = await db.query<any>(`
     SELECT p.job_id, p.project, p.department, p.role, p.total_req, p.required_by_date, p.hr_spoc,
-           p.status, p.created_at,
+           p.status, p.created_at, p.job_description,
            COUNT(c.id) FILTER (WHERE c.stage = 'Interview') AS s0,
            COUNT(c.id) FILTER (WHERE c.stage = 'Offer Negotiation')               AS s1,
            COUNT(c.id) FILTER (WHERE c.stage = 'Offer Approval Pending')          AS s6,
@@ -27,7 +27,7 @@ router.get('/pipeline', authenticateToken, async (req: AuthRequest, res: Respons
     WHERE COALESCE(p.approval_status, '') NOT IN ('pending', 'rejected')
       ${statusClause}
     GROUP BY p.job_id, p.project, p.department, p.role, p.total_req,
-             p.required_by_date, p.hr_spoc, p.status, p.created_at
+             p.required_by_date, p.hr_spoc, p.status, p.created_at, p.job_description
     ORDER BY p.created_at DESC
   `);
 
@@ -40,6 +40,7 @@ router.get('/pipeline', authenticateToken, async (req: AuthRequest, res: Respons
     required_by_date: row.required_by_date,
     hr_spoc: row.hr_spoc,
     status: row.status,
+    job_description: row.job_description || '',
     total: Number(row.total),
     stage_counts: {
       'Interview': Number(row.s0),
@@ -96,7 +97,7 @@ router.get('/:jobId', authenticateToken, async (req: AuthRequest, res: Response)
 });
 
 router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const { job_id: providedJobId, project, department, role, total_req, hr_spoc, required_by_date, status, approval_status, job_description, nature_of_work, interview_panel, level } = req.body;
+  const { job_id: providedJobId, project, department, role, total_req, hr_spoc, required_by_date, status, approval_status, job_description, nature_of_work, interview_panel, level, is_replacement } = req.body;
 
   if (!project || !department || !role || !total_req || !hr_spoc) {
     return res.status(400).json({ error: 'project, department, role, total_req, and hr_spoc are required' });
@@ -110,10 +111,15 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
       [`${prefix}-%`],
     );
     const nums = existing
-      .map((r) => parseInt(r.job_id.slice(prefix.length + 1), 10))
+      .map((r) => {
+        // Strip prefix, then take only the numeric part (handles both PREFIX-01 and PREFIX-01-Rep)
+        const rest = r.job_id.slice(prefix.length + 1);
+        return parseInt(rest.split('-')[0], 10);
+      })
       .filter((n) => !isNaN(n));
     const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
-    job_id = `${prefix}-${String(next).padStart(2, '0')}`;
+    const baseJobId = `${prefix}-${String(next).padStart(2, '0')}`;
+    job_id = is_replacement ? `${baseJobId}-Rep` : baseJobId;
   }
 
   const id = uuidv4();
@@ -122,9 +128,9 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   const indentDate = resolvedApprovalStatus === 'approved' ? now.slice(0, 10) : '';
 
   await db.run(
-    `INSERT INTO positions (id, job_id, project, nature_of_work, department, role, level, total_req, hr_spoc, required_by_date, interview_panel, job_description, indent_date, status, approval_status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, job_id, project, nature_of_work || '', department, role, level || '', total_req, hr_spoc, required_by_date || null, interview_panel || '', job_description || '', indentDate, status || 'active', resolvedApprovalStatus, now, now],
+    `INSERT INTO positions (id, job_id, project, nature_of_work, department, role, level, total_req, hr_spoc, required_by_date, interview_panel, job_description, indent_date, status, approval_status, created_by, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, job_id, project, nature_of_work || '', department, role, level || '', total_req, hr_spoc, required_by_date || null, interview_panel || '', job_description || '', indentDate, status || 'active', resolvedApprovalStatus, req.user!.id, now, now],
   );
 
   res.status(201).json(await db.queryOne('SELECT * FROM positions WHERE id = ?', [id]));

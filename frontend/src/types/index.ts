@@ -1,5 +1,5 @@
 // ── Auth ─────────────────────────────────────────────────
-export type UserRole = 'admin' | 'hr' | 'director' | 'projectlead' | 'businesshead' | 'employee';
+export type UserRole = 'admin' | 'hr' | 'director' | 'projectlead' | 'businesshead' | 'employee' | 'vp_hr';
 
 export interface AuthUser {
   id: number;
@@ -50,6 +50,8 @@ export interface Position {
   created_at: string;
   updated_at: string;
   candidate_count?: number;
+  created_by?: number;
+  is_replacement?: boolean;
 }
 
 export interface Candidate {
@@ -68,9 +70,19 @@ export interface Candidate {
   expected_joining_date: string;
   joined_date: string;
   hr_spoc: string;
+  email?: string;
+  current_company?: string;
+  experience?: string;
+  current_ctc?: string;
+  expected_ctc?: string;
+  notice_period?: string;
+  remarks?: string;
   offered_ctc?: string;
   offer_notes?: string;
   competency_feedback?: string;
+  resume_url?: string;
+  education?: string;
+  work_experience?: string;
   created_at: string;
   updated_at: string;
   project: string;
@@ -89,6 +101,7 @@ export interface PipelineItem {
   required_by_date: string;
   hr_spoc: string;
   status: string;
+  job_description: string;
   total: number;
   stage_counts: Record<string, number>;
 }

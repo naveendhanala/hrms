@@ -4,11 +4,11 @@ import { authenticateToken, requireRole, AuthRequest } from '../middleware/auth'
 
 const router = Router();
 
-router.get('/', authenticateToken, requireRole('admin', 'hr'), async (_req: AuthRequest, res: Response) => {
+router.get('/', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (_req: AuthRequest, res: Response) => {
   const users = await db.query(`
     SELECT u.id, u.emp_id, u.username, u.email, u.name, u.role,
            u.dob, u.date_of_joining, u.project, u.location, u.state, u.site_office, u.designation, u.status,
-           u.created_at, u.reporting_manager_id, m.name AS reporting_manager_name
+           u.department, u.created_at, u.reporting_manager_id, m.name AS reporting_manager_name
     FROM users u
     LEFT JOIN users m ON u.reporting_manager_id = m.id
     WHERE u.role != 'admin'
@@ -31,15 +31,37 @@ router.get('/birthdays', authenticateToken, async (_req: AuthRequest, res: Respo
   res.json(rows);
 });
 
-router.get('/managers', authenticateToken, requireRole('admin', 'hr'), async (_req: AuthRequest, res: Response) => {
+router.get('/my-reportees', authenticateToken, async (req: AuthRequest, res: Response) => {
+  const userId = req.user!.id;
+  const reportees = await db.query(
+    `SELECT id, emp_id, name, email, role, designation, project, department, location, site_office, status, date_of_joining
+     FROM users WHERE reporting_manager_id = ? ORDER BY name ASC`,
+    [userId],
+  );
+  res.json(reportees);
+});
+
+router.get('/me', authenticateToken, async (req: AuthRequest, res: Response) => {
+  const user = await db.queryOne(
+    `SELECT u.id, u.emp_id, u.username, u.email, u.name, u.role, u.level,
+            u.dob, u.date_of_joining, u.project, u.location, u.state, u.site_office,
+            u.designation, u.status, u.created_at, u.reporting_manager_id, m.name AS reporting_manager_name
+     FROM users u LEFT JOIN users m ON u.reporting_manager_id = m.id
+     WHERE u.id = ?`,
+    [req.user!.id],
+  );
+  res.json(user);
+});
+
+router.get('/managers', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (_req: AuthRequest, res: Response) => {
   const managers = await db.query(
     "SELECT id, name, role FROM users WHERE role IN ('admin','hr','director','projectlead','businesshead') ORDER BY name ASC",
   );
   res.json(managers);
 });
 
-router.put('/:id', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
-  const { name, email, role, emp_id, dob, date_of_joining, project, location, state, site_office, designation, status, reporting_manager_id } = req.body;
+router.put('/:id', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
+  const { name, email, role, emp_id, dob, date_of_joining, project, location, state, site_office, designation, status, reporting_manager_id, level, department } = req.body;
 
   const existing = await db.queryOne('SELECT id FROM users WHERE id = ?', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'User not found' });
@@ -47,16 +69,16 @@ router.put('/:id', authenticateToken, requireRole('admin', 'hr'), async (req: Au
   await db.run(
     `UPDATE users
      SET name = ?, email = ?, role = ?, emp_id = ?, dob = ?, date_of_joining = ?, project = ?, location = ?, state = ?,
-         site_office = ?, designation = ?, status = ?, reporting_manager_id = ?
+         site_office = ?, designation = ?, status = ?, reporting_manager_id = ?, level = ?, department = ?
      WHERE id = ?`,
     [name, email, role ?? 'employee', emp_id ?? null, dob ?? null, date_of_joining ?? null, project ?? '', location ?? '', state ?? '',
-     site_office ?? '', designation ?? '', status ?? 'active', reporting_manager_id ?? null, req.params.id],
+     site_office ?? '', designation ?? '', status ?? 'active', reporting_manager_id ?? null, level ?? 'APM Below', department ?? '', req.params.id],
   );
 
   res.json({ ok: true });
 });
 
-router.patch('/:id/manager', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.patch('/:id/manager', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { reporting_manager_id } = req.body;
   await db.run('UPDATE users SET reporting_manager_id = ? WHERE id = ?', [reporting_manager_id ?? null, req.params.id]);
   res.json({ ok: true });

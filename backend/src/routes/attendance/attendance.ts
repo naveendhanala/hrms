@@ -43,7 +43,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   res.json(rows);
 });
 
-router.get('/report', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.get('/report', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { month, year } = req.query;
   const m = month ? String(month).padStart(2, '0') : String(new Date().getMonth() + 1).padStart(2, '0');
   const y = year || new Date().getFullYear();
@@ -71,7 +71,7 @@ router.get('/report', authenticateToken, requireRole('admin', 'hr'), async (req:
   res.json(rows);
 });
 
-router.get('/all', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.get('/all', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { month, year, user_id } = req.query;
   const m = month ? String(month).padStart(2, '0') : String(new Date().getMonth() + 1).padStart(2, '0');
   const y = year || new Date().getFullYear();
@@ -154,7 +154,7 @@ router.get('/leaves', authenticateToken, async (req: AuthRequest, res: Response)
   res.json(rows);
 });
 
-router.get('/leaves/all', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.get('/leaves/all', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { status } = req.query;
   let sql = `SELECT l.*, u.name as user_name, u.role as user_role, r.name as reviewer_name
              FROM leaves l JOIN users u ON l.user_id = u.id
@@ -180,7 +180,7 @@ router.post('/leaves', authenticateToken, async (req: AuthRequest, res: Response
   res.status(201).json(await db.queryOne('SELECT * FROM leaves WHERE id = ?', [result.lastInsertRowid]));
 });
 
-router.put('/leaves/:id/approve', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.put('/leaves/:id/approve', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const now = new Date().toISOString();
   const result = await db.run(
     "UPDATE leaves SET status = 'approved', reviewed_by = ?, reviewed_at = ?, updated_at = ? WHERE id = ?",
@@ -222,7 +222,7 @@ router.put('/leaves/:id/approve', authenticateToken, requireRole('admin', 'hr'),
   res.json(await db.queryOne('SELECT * FROM leaves WHERE id = ?', [req.params.id]));
 });
 
-router.put('/leaves/:id/reject', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.put('/leaves/:id/reject', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const now = new Date().toISOString();
   const result = await db.run(
     "UPDATE leaves SET status = 'rejected', reviewed_by = ?, reviewed_at = ?, updated_at = ? WHERE id = ?",
@@ -233,7 +233,7 @@ router.put('/leaves/:id/reject', authenticateToken, requireRole('admin', 'hr'), 
   res.json(await db.queryOne('SELECT * FROM leaves WHERE id = ?', [req.params.id]));
 });
 
-router.put('/manual', authenticateToken, requireRole('admin', 'hr'), async (req: AuthRequest, res: Response) => {
+router.put('/manual', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { user_id, date, status } = req.body;
   if (!user_id || !date || !status) return res.status(400).json({ error: 'user_id, date and status required' });
   if (!['present', 'absent', 'leave'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
@@ -286,7 +286,7 @@ router.put('/manual', authenticateToken, requireRole('admin', 'hr'), async (req:
 });
 
 // All employee leave balances (admin/HR)
-router.get('/leave-balances/all', authenticateToken, requireRole('admin', 'hr'), async (_req: AuthRequest, res: Response) => {
+router.get('/leave-balances/all', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (_req: AuthRequest, res: Response) => {
   const rows = await db.query<any>(`
     SELECT u.id AS user_id, COALESCE(lb.balance, 0) AS balance
     FROM users u
@@ -297,7 +297,7 @@ router.get('/leave-balances/all', authenticateToken, requireRole('admin', 'hr'),
 });
 
 // Last quarterly leave grant info (for status indicator)
-router.get('/grant-quarterly-leaves/last', authenticateToken, requireRole('admin', 'hr'), async (_req: AuthRequest, res: Response) => {
+router.get('/grant-quarterly-leaves/last', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (_req: AuthRequest, res: Response) => {
   const row = await db.queryOne<any>(
     'SELECT * FROM leave_grant_log ORDER BY granted_at DESC LIMIT 1',
   );
@@ -305,7 +305,7 @@ router.get('/grant-quarterly-leaves/last', authenticateToken, requireRole('admin
 });
 
 // Cron-only endpoint — not exposed in the UI
-router.post('/grant-quarterly-leaves', authenticateToken, requireRole('admin', 'hr'), async (_req: AuthRequest, res: Response) => {
+router.post('/grant-quarterly-leaves', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (_req: AuthRequest, res: Response) => {
   const result = await grantQuarterlyLeaves();
   res.json({ ok: true, ...result });
 });
