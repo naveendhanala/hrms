@@ -20,6 +20,7 @@ export default function CandidateDocuments({ candidateId }: { candidateId: strin
   const [file, setFile] = useState<File | null>(null);
   const [docType, setDocType] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState<number | null>(null);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -55,11 +56,14 @@ export default function CandidateDocuments({ candidateId }: { candidateId: strin
 
   const handleDelete = async (docId: number) => {
     if (!window.confirm('Delete this document?')) return;
+    setDeleting(docId);
     try {
       await deleteCandidateDocument(candidateId, docId);
       setDocs((prev) => prev.filter((d) => d.id !== docId));
     } catch (e: any) {
       alert(e.message ?? 'Delete failed');
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -148,9 +152,10 @@ export default function CandidateDocuments({ candidateId }: { candidateId: strin
                       <button
                         type="button"
                         onClick={() => handleDelete(doc.id)}
-                        className="text-xs text-red-500 hover:text-red-700 font-medium"
+                        disabled={deleting === doc.id}
+                        className="text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-50"
                       >
-                        Delete
+                        {deleting === doc.id ? 'Deleting…' : 'Delete'}
                       </button>
                     </td>
                   )}

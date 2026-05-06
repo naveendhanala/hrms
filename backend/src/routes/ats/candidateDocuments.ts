@@ -69,8 +69,11 @@ router.post(
     const docType = (req.body.doc_type ?? '').trim();
     if (!docType) return res.status(400).json({ error: 'doc_type is required' });
 
+    const candidate = await db.queryOne<any>('SELECT id FROM candidates WHERE id = $1', [req.params.id]);
+    if (!candidate) return res.status(404).json({ error: 'Candidate not found' });
+
     const safe = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const storagePath = `${req.params.id}/${Date.now()}-${safe}`;
+    let storagePath = `${req.params.id}/${Date.now()}-${safe}`;
 
     try {
       const client = storageClient();
@@ -90,6 +93,13 @@ router.post(
       );
       res.status(201).json({ id: result.lastInsertRowid });
     } catch (err: any) {
+      // attempt to remove orphaned file if upload succeeded but DB insert failed
+      try {
+        const client = storageClient();
+        await client.from(BUCKET).remove([storagePath]);
+      } catch {
+        // best-effort cleanup, ignore secondary errors
+      }
       res.status(500).json({ error: err.message });
     }
   },
