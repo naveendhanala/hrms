@@ -8,6 +8,7 @@ import atsCandidatesRoutes from './routes/ats/candidates';
 import atsFeedbackRoutes from './routes/ats/feedback';
 import atsReportRoutes from './routes/ats/report';
 import atsConfigRoutes from './routes/ats/config';
+import atsParseResumeRoutes from './routes/ats/parseResume';
 import lmsCoursesRoutes from './routes/lms/courses';
 import lmsQuestionsRoutes from './routes/lms/questions';
 import lmsAttemptsRoutes from './routes/lms/attempts';
@@ -46,6 +47,7 @@ app.use('/api/ats/candidates', atsCandidatesRoutes);
 app.use('/api/ats/feedback', atsFeedbackRoutes);
 app.use('/api/ats/report', atsReportRoutes);
 app.use('/api/ats/config', atsConfigRoutes);
+app.use('/api/ats/parse-resume', atsParseResumeRoutes);
 
 // Users / Employees module
 app.use('/api/users', usersRoutes);

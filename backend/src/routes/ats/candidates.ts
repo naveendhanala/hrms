@@ -1,12 +1,15 @@
 import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
 import db from '../../db';
 import { authenticateToken, AuthRequest } from '../../middleware/auth';
 
-const uploadsDir = path.join(__dirname, '../../../uploads/resumes');
+const uploadsDir = process.env.VERCEL
+  ? path.join(os.tmpdir(), 'hrms-resumes')
+  : path.join(__dirname, '../../../uploads/resumes');
 fs.mkdirSync(uploadsDir, { recursive: true });
 
 const storage = multer.diskStorage({
