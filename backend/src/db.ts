@@ -136,6 +136,16 @@ async function _runMigrations(): Promise<void> {
   vp_accepted_by        INTEGER REFERENCES users(id),
   revoked_at            TEXT
 )`),
+    pool.query(`CREATE TABLE IF NOT EXISTS candidate_documents (
+  id           SERIAL PRIMARY KEY,
+  candidate_id TEXT NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+  doc_type     TEXT NOT NULL DEFAULT '',
+  file_name    TEXT NOT NULL,
+  storage_path TEXT NOT NULL,
+  uploaded_by  INTEGER REFERENCES users(id),
+  uploaded_at  TEXT NOT NULL DEFAULT ''
+)`),
+    pool.query(`UPDATE candidates SET resume_url = NULL WHERE resume_url IS NOT NULL`),
   ]);
 
   // Update role constraint to include vp_hr — drop any existing role check by dynamic name lookup
