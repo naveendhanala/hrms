@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { listCandidates, listCandidatesPaged, createCandidate, updateCandidate, requestOfferApproval, uploadCandidateResume } from '../../../api/ats-candidates';
+import { listCandidates, listCandidatesPaged, createCandidate, updateCandidate, requestOfferApproval } from '../../../api/ats-candidates';
+import { uploadCandidateDocument } from '../../../api/ats-documents';
 import { listPositions } from '../../../api/ats-positions';
 import type { Candidate } from '../../../types';
 import { STAGES } from '../../../types';
@@ -151,7 +152,7 @@ export default function CandidateList() {
     try {
       setCreateError('');
       const created = await createCandidate(data);
-      if (resumeFile) await uploadCandidateResume(created.id, resumeFile).catch(() => {});
+      if (resumeFile) await uploadCandidateDocument(created.id, resumeFile, 'Resume').catch(() => {});
       setShowForm(false);
       load(1);
       setPage(1);
@@ -165,7 +166,7 @@ export default function CandidateList() {
     try {
       setCreateError('');
       await updateCandidate(editing.id, data);
-      if (resumeFile) await uploadCandidateResume(editing.id, resumeFile).catch(() => {});
+      if (resumeFile) await uploadCandidateDocument(editing.id, resumeFile, 'Resume').catch(() => {});
       setEditing(null);
       setShowForm(false);
       load();
