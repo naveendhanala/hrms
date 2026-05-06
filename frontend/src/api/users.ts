@@ -32,9 +32,9 @@ export interface EmployeeUpdate {
   name: string;
   email: string;
   role?: string;
-  emp_id?: string;
-  dob?: string;
-  date_of_joining?: string;
+  emp_id?: string | null;
+  dob?: string | null;
+  date_of_joining?: string | null;
   project?: string;
   department?: string;
   location?: string;
