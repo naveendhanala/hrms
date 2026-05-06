@@ -1,25 +1,7 @@
 import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import os from 'os';
-import path from 'path';
-import fs from 'fs';
-import multer from 'multer';
 import db from '../../db';
 import { authenticateToken, AuthRequest } from '../../middleware/auth';
-
-const uploadsDir = process.env.VERCEL
-  ? path.join(os.tmpdir(), 'hrms-resumes')
-  : path.join(__dirname, '../../../uploads/resumes');
-fs.mkdirSync(uploadsDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: uploadsDir,
-  filename: (_req, file, cb) => {
-    const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-    cb(null, `${Date.now()}-${safe}`);
-  },
-});
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 const router = Router();
 
@@ -250,26 +232,6 @@ router.post('/:id/reject-offer', authenticateToken, async (req: AuthRequest, res
   );
   if (result.rowsAffected === 0) return res.status(404).json({ error: 'Candidate not found' });
   res.json(await db.queryOne('SELECT * FROM candidates WHERE id = ?', [req.params.id]));
-});
-
-router.post('/:id/resume', authenticateToken, upload.single('resume'), async (req: AuthRequest, res: Response) => {
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-
-  const candidate = await db.queryOne<any>('SELECT id, resume_url FROM candidates WHERE id = ?', [req.params.id]);
-  if (!candidate) {
-    fs.unlinkSync(req.file.path);
-    return res.status(404).json({ error: 'Candidate not found' });
-  }
-
-  // Delete old resume file if present
-  if (candidate.resume_url) {
-    const oldPath = path.join(__dirname, '../../../', candidate.resume_url);
-    fs.unlink(oldPath, () => {});
-  }
-
-  const resumeUrl = `/uploads/resumes/${req.file.filename}`;
-  await db.run('UPDATE candidates SET resume_url = ?, updated_at = ? WHERE id = ?', [resumeUrl, new Date().toISOString(), req.params.id]);
-  res.json({ resume_url: resumeUrl });
 });
 
 export default router;
