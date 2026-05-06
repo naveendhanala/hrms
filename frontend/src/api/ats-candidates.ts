@@ -49,19 +49,27 @@ export function rejectOffer(id: string) {
   return apiFetch<Candidate>(`${BASE}/${id}/reject-offer`, { method: 'POST' });
 }
 
-export function uploadCandidateResume(id: string, file: File) {
+export interface ParsedResume {
+  name: string;
+  mobile: string;
+  education: { degree: string; college: string; year: string }[];
+  work_experience: { company: string; designation: string; from: string; to: string; project: string }[];
+}
+
+export function parseResume(file: File): Promise<ParsedResume> {
   const fd = new FormData();
   fd.append('resume', file);
   const token = localStorage.getItem('hrms_token');
-  return fetch(`${BASE}/${id}/resume`, {
+  return fetch('/api/ats/parse-resume', {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: fd,
   }).then(async (res) => {
     if (!res.ok) {
       const body = await res.json().catch(() => ({})) as Record<string, unknown>;
-      throw new Error(String(body.error ?? 'Upload failed'));
+      throw new Error(String(body.error ?? 'Parse failed'));
     }
-    return res.json() as Promise<{ resume_url: string }>;
+    return res.json() as Promise<ParsedResume>;
   });
 }
+
