@@ -122,12 +122,6 @@ export default function GratuityPage() {
     if (tab === 'disbursements') loadDisbursements();
   }, [tab, loadDisbursements]);
 
-  // When accruals tab loads, prefetch accruals so the employee dropdown is populated
-  useEffect(() => {
-    loadAccruals();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const selectedAccrual = accruals.find(a => a.employee_id === Number(form.employee_id));
 
   const handleEmployeeChange = (employee_id: string) => {
@@ -135,7 +129,7 @@ export default function GratuityPage() {
     setForm(f => ({
       ...f,
       employee_id,
-      accrued_amount: accrual ? String(accrual.cumulative_amount) : f.accrued_amount,
+      accrued_amount: accrual ? String(accrual.cumulative_amount) : '',
     }));
   };
 
@@ -151,14 +145,20 @@ export default function GratuityPage() {
       setSubmitError('Years of service must be at least 5 (gratuity eligibility threshold).');
       return;
     }
+    const paidAmt = Number(form.paid_amount);
+    const accruedAmt = Number(form.accrued_amount);
+    if (paidAmt > accruedAmt) {
+      setSubmitError('Paid amount cannot exceed accrued amount.');
+      return;
+    }
     setSubmitting(true);
     try {
       await recordGratuityDisbursement({
         employee_id: Number(form.employee_id),
         exit_date: form.exit_date,
         years_of_service: yos,
-        accrued_amount: Number(form.accrued_amount),
-        paid_amount: Number(form.paid_amount),
+        accrued_amount: accruedAmt,
+        paid_amount: paidAmt,
         payment_date: form.payment_date,
         notes: form.notes || undefined,
       });
