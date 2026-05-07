@@ -1,4 +1,4 @@
-import { type ReactNode, useState, useEffect, useRef } from 'react';
+import { Fragment, type ReactNode, useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getMyReportees } from '../../api/users';
@@ -74,7 +74,7 @@ const MODULE_ROUTES: Record<string, Record<UserRole, string>> = {
 const MODULE_ACCESS: Record<string, UserRole[]> = {
   KB:         ['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee', 'vp_hr'],
   DASHBOARD:  ['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee', 'vp_hr'],
-  EMPLOYEES:  ['admin', 'hr', 'vp_hr'],
+  EMPLOYEES:  ['admin'],
   ATS:        ['admin', 'hr', 'vp_hr', 'director', 'projectlead', 'businesshead'],
   LMS:        ['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee', 'vp_hr'],
   ATTENDANCE: ['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee', 'vp_hr'],
@@ -154,6 +154,7 @@ export default function AppLayout({ children }: Props) {
   const isAdvances        = location.pathname === '/payroll/advances';
   const isTaxComputation  = location.pathname === '/payroll/tax-computation';
   const isConfigurations  = location.pathname === '/payroll/configurations';
+  const isGratuity        = location.pathname === '/payroll/gratuity';
 
   const initials = user.name
     .split(' ')
@@ -223,9 +224,10 @@ export default function AppLayout({ children }: Props) {
             MODULE_ACCESS[key]?.includes(user.role)
           ).map(({ key, label }) => {
             const isActive = activeModule === key;
+            const mrActive = activeModule === 'MANAGE_REPORTEES';
             return (
+              <Fragment key={key}>
               <button
-                key={key}
                 onClick={() => navigate(MODULE_ROUTES[key][user.role])}
                 style={{
                   display: 'flex',
@@ -301,45 +303,41 @@ export default function AppLayout({ children }: Props) {
                 )}
                 {label}
               </button>
+              {key === 'DASHBOARD' && hasReportees && (
+                <button
+                  onClick={() => navigate('/my-reportees')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: 8,
+                    border: 'none',
+                    cursor: 'pointer',
+                    marginBottom: 2,
+                    background: mrActive ? '#ede9fe' : 'transparent',
+                    color: mrActive ? '#6d28d9' : '#4b5563',
+                    fontWeight: mrActive ? 600 : 500,
+                    fontSize: 14,
+                    textAlign: 'left',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => { if (!mrActive) (e.currentTarget as HTMLButtonElement).style.background = '#f9fafb'; }}
+                  onMouseLeave={e => { if (!mrActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    <path d="M21 21v-2a4 4 0 0 0-3-3.87" />
+                  </svg>
+                  Manage Reportees
+                </button>
+              )}
+              </Fragment>
             );
           })}
-
-          {/* Manage Reportees — only visible when user has direct reports */}
-          {hasReportees && (() => {
-            const isActive = activeModule === 'MANAGE_REPORTEES';
-            return (
-              <button
-                onClick={() => navigate('/my-reportees')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  width: '100%',
-                  padding: '9px 12px',
-                  borderRadius: 8,
-                  border: 'none',
-                  cursor: 'pointer',
-                  marginBottom: 2,
-                  background: isActive ? '#ede9fe' : 'transparent',
-                  color: isActive ? '#6d28d9' : '#4b5563',
-                  fontWeight: isActive ? 600 : 500,
-                  fontSize: 14,
-                  textAlign: 'left',
-                  transition: 'background 0.15s',
-                }}
-                onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = '#f9fafb'; }}
-                onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                  <path d="M21 21v-2a4 4 0 0 0-3-3.87" />
-                </svg>
-                Manage Reportees
-              </button>
-            );
-          })()}
 
           {/* Salary Master sub-item — only visible when Payroll section is active */}
           {activeModule === 'PAYROLL' && MODULE_ACCESS['PAYROLL']?.includes(user.role) && (
@@ -461,8 +459,37 @@ export default function AppLayout({ children }: Props) {
               </svg>
               Configurations
             </button>
+            <button
+              onClick={() => navigate('/payroll/gratuity')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                width: '100%',
+                padding: '7px 12px 7px 36px',
+                borderRadius: 8,
+                border: 'none',
+                cursor: 'pointer',
+                marginBottom: 2,
+                background: isGratuity ? '#ede9fe' : 'transparent',
+                color: isGratuity ? '#6d28d9' : '#6b7280',
+                fontWeight: isGratuity ? 600 : 400,
+                fontSize: 13,
+                textAlign: 'left',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => { if (!isGratuity) (e.currentTarget as HTMLButtonElement).style.background = '#f9fafb'; }}
+              onMouseLeave={e => { if (!isGratuity) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z"/>
+                <path d="M12 6v6l4 2"/>
+              </svg>
+              Gratuity
+            </button>
             </>
           )}
+
         </nav>
 
         {/* User at bottom */}
@@ -575,7 +602,7 @@ export default function AppLayout({ children }: Props) {
           <h1 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#111827' }}>
             {activeModule === 'DASHBOARD'        ? 'Dashboard'
             : activeModule === 'EMPLOYEES'       ? 'Employees'
-            : activeModule === 'PAYROLL'         ? (isSalaryMaster ? 'Salary Master' : isAdvances ? 'Advances' : isTaxComputation ? 'Tax Computation' : isConfigurations ? 'Configurations' : 'Payroll')
+            : activeModule === 'PAYROLL'         ? (isSalaryMaster ? 'Salary Master' : isAdvances ? 'Advances' : isTaxComputation ? 'Tax Computation' : isConfigurations ? 'Configurations' : isGratuity ? 'Gratuity' : 'Payroll')
             : activeModule === 'ATS'             ? 'Applicant Tracking System'
             : activeModule === 'ATTENDANCE'      ? 'Attendance Management'
             : activeModule === 'KB'              ? 'Knowledge Base'

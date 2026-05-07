@@ -44,6 +44,7 @@ const LmsReportPage         = lazy(() => import('./pages/lms/admin/ReportPage'))
 const ManageReporteesPage   = lazy(() => import('./pages/ManageReporteesPage'));
 const MyProfilePage         = lazy(() => import('./pages/MyProfilePage'));
 const MyResignationPage     = lazy(() => import('./pages/MyResignationPage'));
+const GratuityPage          = lazy(() => import('./pages/GratuityPage'));
 
 function PageLoader() {
   return <div style={{ padding: 40, color: '#9ca3af', fontSize: 14 }}>Loading…</div>;
@@ -65,6 +66,7 @@ export default function App() {
           <Route path="/payroll/advances" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'vp_hr']}><AdvancesPage /></ProtectedRoute>} />
           <Route path="/payroll/tax-computation" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'vp_hr']}><TaxComputationPage /></ProtectedRoute>} />
           <Route path="/payroll/configurations" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'vp_hr']}><ConfigurationsPage /></ProtectedRoute>} />
+          <Route path="/payroll/gratuity" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'vp_hr']}><GratuityPage /></ProtectedRoute>} />
           {/* Knowledge Base */}
           <Route path="/kb" element={<ProtectedRoute allowedRoles={['admin', 'hr', 'director', 'projectlead', 'businesshead', 'employee', 'vp_hr']}><KnowledgeBasePage /></ProtectedRoute>} />
 
