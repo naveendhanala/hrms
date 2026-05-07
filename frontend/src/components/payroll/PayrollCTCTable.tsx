@@ -163,6 +163,7 @@ const TIPS = {
   gross:           'Basic + Allowances — full contracted monthly salary before any deductions.',
   lopDeduction:    'Gross ÷ Working Days × LOP Days — proportional deduction for loss-of-pay absences.',
   earnedGross:     'Gross − LOP Deduction — the salary actually earned this month.',
+  arrears:         'Retroactive salary difference for past months where a revision was effective but payroll had already been processed. Paid out as a lump sum in this month\'s run.',
   epfEmployee:     '12% of Basic (capped at ₹15,000 Basic) — Employee\'s Provident Fund contribution deducted from salary.',
   esicEmployee:    '0.75% of Earned Gross — Employee ESIC contribution; applicable only when Earned Gross ≤ ₹21,000/month.',
   lwfEmployee:     'Fixed amount set by the state government — Employee\'s Labour Welfare Fund contribution.',
@@ -214,6 +215,7 @@ export default function PayrollCTCTable({ records, runId }: Props) {
   const totGross           = records.reduce((s, r) => s + r.gross_salary, 0);
   const totLopDeduction    = records.reduce((s, r) => s + r.lop_deduction, 0);
   const totEarnedGross     = records.reduce((s, r) => s + (r.gross_salary - r.lop_deduction), 0);
+  const totArrears         = records.reduce((s, r) => s + (r.arrears ?? 0), 0);
   const totWorkingDays     = records.reduce((s, r) => s + r.working_days, 0);
   const totPresentDays     = records.reduce((s, r) => s + r.present_days, 0);
   const totLeaveDays       = records.reduce((s, r) => s + r.leave_days, 0);
@@ -280,7 +282,7 @@ export default function PayrollCTCTable({ records, runId }: Props) {
             <tr>
               <th colSpan={4}  style={{ ...GROUP_TH, background: '#f5f3ff', color: '#5b21b6' }}>Employee Info</th>
               <th colSpan={5}  style={{ ...GROUP_TH, background: '#eff6ff', color: '#1d4ed8' }}>Attendance</th>
-              <th colSpan={5}  style={{ ...GROUP_TH, background: '#f0fdf4', color: '#15803d' }}>Earnings</th>
+              <th colSpan={6}  style={{ ...GROUP_TH, background: '#f0fdf4', color: '#15803d' }}>Earnings</th>
               <th colSpan={7}  style={{ ...GROUP_TH, background: '#fef2f2', color: '#dc2626' }}>Employee Deductions</th>
               <th colSpan={5}  style={{ ...GROUP_TH, background: '#fff7ed', color: '#c2410c' }}>Employer Contributions</th>
               <th colSpan={3}  style={{ ...GROUP_TH, background: '#f0fdf4', color: '#15803d' }}>Net Pay &amp; CTC</th>
@@ -304,6 +306,7 @@ export default function PayrollCTCTable({ records, runId }: Props) {
               <InfoTh label="Gross"         tip={TIPS.gross}        thStyle={COL_TH_RIGHT} onInfo={handleInfo} />
               <InfoTh label="LOP Deduction" tip={TIPS.lopDeduction} thStyle={COL_TH_RIGHT} onInfo={handleInfo} />
               <InfoTh label="Earned Gross"  tip={TIPS.earnedGross}  thStyle={COL_TH_RIGHT} onInfo={handleInfo} />
+              <InfoTh label="Arrears"      tip={TIPS.arrears}      thStyle={COL_TH_RIGHT} onInfo={handleInfo} />
               {/* Employee Deductions */}
               <InfoTh label="EPF"              tip={TIPS.epfEmployee}     thStyle={COL_TH_RIGHT} onInfo={handleInfo} />
               <InfoTh label="ESIC"             tip={TIPS.esicEmployee}    thStyle={COL_TH_RIGHT} onInfo={handleInfo} />
@@ -363,6 +366,9 @@ export default function PayrollCTCTable({ records, runId }: Props) {
                     {r.lop_deduction > 0 ? fmt(r.lop_deduction) : '—'}
                   </td>
                   <td style={{ ...TD_R, color: '#1e40af', fontWeight: 500 }}>{fmt(earnedGross)}</td>
+                  <td style={{ ...TD_R, color: r.arrears > 0 ? '#d97706' : r.arrears < 0 ? '#dc2626' : '#d1d5db' }}>
+                    {r.arrears !== 0 ? fmt(r.arrears) : '—'}
+                  </td>
 
                   {/* Employee Deductions */}
                   <td style={{ ...TD_R, color: r.epf_employee > 0 ? '#374151' : '#d1d5db' }}>
@@ -452,6 +458,9 @@ export default function PayrollCTCTable({ records, runId }: Props) {
               <td style={{ ...TFOOT_TD, color: '#374151' }}>{fmt(totGross)}</td>
               <td style={{ ...TFOOT_TD, color: '#991b1b' }}>{totLopDeduction > 0 ? fmt(totLopDeduction) : <span style={{ color: '#d1d5db', fontWeight: 400 }}>—</span>}</td>
               <td style={{ ...TFOOT_TD, color: '#1e40af' }}>{fmt(totEarnedGross)}</td>
+              <td style={{ ...TFOOT_TD, color: totArrears > 0 ? '#d97706' : totArrears < 0 ? '#dc2626' : '#374151' }}>
+                {totArrears !== 0 ? fmt(totArrears) : <span style={{ color: '#d1d5db', fontWeight: 400 }}>—</span>}
+              </td>
 
               {/* Employee Deductions totals */}
               <td style={{ ...TFOOT_TD, color: '#374151' }}>{totEpfEmp > 0 ? fmt(totEpfEmp) : <span style={{ color: '#d1d5db', fontWeight: 400 }}>—</span>}</td>
