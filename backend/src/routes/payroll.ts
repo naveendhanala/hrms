@@ -89,11 +89,25 @@ router.post('/salary-master/:userId/revise', authenticateToken, requireRole('adm
   const now = new Date().toISOString();
   const today = now.slice(0, 10); // YYYY-MM-DD
 
+  // Capture current salary_master values as the "previous" snapshot
+  const prevSalary = await db.queryOne<{
+    basic_salary: number;
+    hra: number;
+    meal_allowance: number;
+    conveyance_allowance: number;
+    special_allowance: number;
+  } | null>(
+    'SELECT basic_salary, hra, meal_allowance, conveyance_allowance, special_allowance FROM salary_master WHERE employee_id = ?',
+    [Number(req.params.userId)],
+  );
+
   await db.transaction(async (tx) => {
     await tx.run(
       `INSERT INTO salary_master_history
-         (employee_id, effective_date, basic_salary, hra, meal_allowance, conveyance_allowance, special_allowance, deductions, created_by, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (employee_id, effective_date, basic_salary, hra, meal_allowance, conveyance_allowance, special_allowance, deductions,
+          prev_basic_salary, prev_hra, prev_meal_allowance, prev_conveyance_allowance, prev_special_allowance,
+          created_by, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         Number(req.params.userId),
         effective_date,
@@ -103,6 +117,11 @@ router.post('/salary-master/:userId/revise', authenticateToken, requireRole('adm
         conveyance_allowance ?? 0,
         special_allowance    ?? 0,
         deductions           ?? 0,
+        prevSalary?.basic_salary         ?? null,
+        prevSalary?.hra                  ?? null,
+        prevSalary?.meal_allowance       ?? null,
+        prevSalary?.conveyance_allowance ?? null,
+        prevSalary?.special_allowance    ?? null,
         req.user!.id,
         now,
       ],
@@ -285,24 +304,12 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
         h.conveyance_allowance,
         h.special_allowance,
         h.arrears_processed,
-        prev.basic_salary         AS prev_basic,
-        prev.hra                  AS prev_hra,
-        prev.meal_allowance       AS prev_meal,
-        prev.conveyance_allowance AS prev_conv,
-        prev.special_allowance    AS prev_special,
-        sm.basic_salary           AS sm_basic,
-        sm.hra                    AS sm_hra,
-        sm.meal_allowance         AS sm_meal,
-        sm.conveyance_allowance   AS sm_conv,
-        sm.special_allowance      AS sm_special
+        h.prev_basic_salary         AS prev_basic,
+        h.prev_hra                  AS prev_hra,
+        h.prev_meal_allowance       AS prev_meal,
+        h.prev_conveyance_allowance AS prev_conv,
+        h.prev_special_allowance    AS prev_special
       FROM salary_master_history h
-      LEFT JOIN salary_master sm ON sm.employee_id = h.employee_id
-      LEFT JOIN LATERAL (
-        SELECT basic_salary, hra, meal_allowance, conveyance_allowance, special_allowance
-        FROM salary_master_history h2
-        WHERE h2.employee_id = h.employee_id AND h2.effective_date < h.effective_date
-        ORDER BY h2.effective_date DESC LIMIT 1
-      ) prev ON TRUE
       WHERE (h.effective_date >= ? AND h.effective_date <= ?)
          OR (h.effective_date < ?  AND h.arrears_processed = FALSE)
     `, [firstOfMonth, lastOfMonth, firstOfMonth]),
@@ -413,11 +420,11 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
       const effDay        = effDate.getDate();
       const daysUnderNew  = pastTotalDays - effDay + 1;
 
-      const oldBasic = Number(rev.prev_basic   ?? rev.sm_basic   ?? 0);
-      const oldHra   = Number(rev.prev_hra     ?? rev.sm_hra     ?? 0);
-      const oldMeal  = Number(rev.prev_meal    ?? rev.sm_meal    ?? 0);
-      const oldConv  = Number(rev.prev_conv    ?? rev.sm_conv    ?? 0);
-      const oldSpec  = Number(rev.prev_special ?? rev.sm_special ?? 0);
+      const oldBasic = Number(rev.prev_basic   ?? emp.basic_salary);
+      const oldHra   = Number(rev.prev_hra     ?? emp.hra);
+      const oldMeal  = Number(rev.prev_meal    ?? emp.meal_allowance);
+      const oldConv  = Number(rev.prev_conv    ?? emp.conveyance_allowance);
+      const oldSpec  = Number(rev.prev_special ?? emp.special_allowance);
       const oldGross = oldBasic + oldHra + oldMeal + oldConv + oldSpec;
 
       const newGross = Number(rev.basic_salary) + Number(rev.hra) + Number(rev.meal_allowance) + Number(rev.conveyance_allowance) + Number(rev.special_allowance);

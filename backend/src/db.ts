@@ -235,6 +235,11 @@ async function _runMigrations(): Promise<void> {
     pool.query(`CREATE INDEX IF NOT EXISTS idx_smh_effective ON salary_master_history(employee_id, effective_date)`),
     pool.query(`ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS arrears       REAL NOT NULL DEFAULT 0`),
     pool.query(`ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS arrears_label TEXT NOT NULL DEFAULT ''`),
+    pool.query(`ALTER TABLE salary_master_history ADD COLUMN IF NOT EXISTS prev_basic_salary         REAL`),
+    pool.query(`ALTER TABLE salary_master_history ADD COLUMN IF NOT EXISTS prev_hra                  REAL`),
+    pool.query(`ALTER TABLE salary_master_history ADD COLUMN IF NOT EXISTS prev_meal_allowance       REAL`),
+    pool.query(`ALTER TABLE salary_master_history ADD COLUMN IF NOT EXISTS prev_conveyance_allowance REAL`),
+    pool.query(`ALTER TABLE salary_master_history ADD COLUMN IF NOT EXISTS prev_special_allowance    REAL`),
   ]);
 
   // Update role constraint to include vp_hr — drop any existing role check by dynamic name lookup
