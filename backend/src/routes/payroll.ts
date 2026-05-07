@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import db from '../db';
 import { authenticateToken, requireRole, AuthRequest } from '../middleware/auth';
 import { computeAnnualTax, getFY } from './taxComputation';
+import { calcEpf, calcEsic, calcLwf, calcGratuityProvision } from '../payroll/calculations';
 
 const router = Router();
 
@@ -76,10 +77,20 @@ router.get('/', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (r
            u.designation as employee_designation, u.state as employee_state,
            m.name as manager_name,
            (r.basic_salary + r.allowances) as gross_salary,
-           COALESCE(r.tds_deduction, 0) as tds_deduction
+           COALESCE(r.tds_deduction,       0) as tds_deduction,
+           COALESCE(r.epf_employee,        0) as epf_employee,
+           COALESCE(r.epf_employer,        0) as epf_employer,
+           COALESCE(r.eps_employer,        0) as eps_employer,
+           COALESCE(r.esic_employee,       0) as esic_employee,
+           COALESCE(r.esic_employer,       0) as esic_employer,
+           COALESCE(r.lwf_employee,        0) as lwf_employee,
+           COALESCE(r.lwf_employer,        0) as lwf_employer,
+           COALESCE(r.gratuity_provision,  0) as gratuity_provision,
+           sc.epf_exempt, sc.esic_exempt
     FROM payroll_records r
     JOIN users u ON r.employee_id = u.id
     LEFT JOIN users m ON u.reporting_manager_id = m.id
+    LEFT JOIN employee_statutory_config sc ON sc.employee_id = r.employee_id
     WHERE r.run_id = ?
     ORDER BY u.name ASC
   `, [run.id]);
@@ -104,11 +115,9 @@ router.get('/history', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), a
 async function buildPayrollRecords(runId: number, month: number, year: number, now: string) {
   const totalDays   = getDaysInMonth(month, year);
   const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
-
   const { fyStartYear, fyEndYear } = getFY(month, year);
 
-  // Fetch employees, prof-tax config, and all per-employee datasets in parallel
-  const [employees, stateTaxRows, allAtt, allAdv, allTds] = await Promise.all([
+  const [employees, stateTaxRows, lwfRows, statutoryRows, allAtt, allAdv, allTds, historicalGratuity] = await Promise.all([
     db.query<any>(`
       SELECT u.id, u.state, u.date_of_joining,
              COALESCE(s.basic_salary,           0) AS basic_salary,
@@ -123,49 +132,51 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
       LEFT JOIN employee_tax_config t ON t.employee_id = u.id
       WHERE u.role != 'admin' AND u.status = 'active'
     `),
-
     db.query<{ state: string; amount: number }>('SELECT state, amount FROM prof_tax_by_state'),
-
-    // All attendance counts for the month — one query for all employees
+    db.query<any>('SELECT state, employee_amount, employer_amount, frequency FROM lwf_by_state'),
+    db.query<any>('SELECT employee_id, epf_exempt, esic_exempt, lwf_exempt FROM employee_statutory_config'),
     db.query<any>(`
       SELECT user_id,
              COUNT(*) FILTER (WHERE status = 'present') AS present_days,
              COUNT(*) FILTER (WHERE status = 'leave')   AS leave_days,
              COUNT(*) FILTER (WHERE status = 'absent')  AS absent_days,
              COUNT(*) FILTER (WHERE lop = true)         AS lop_days
-      FROM attendance
-      WHERE date LIKE ?
-      GROUP BY user_id
+      FROM attendance WHERE date LIKE ? GROUP BY user_id
     `, [`${monthPrefix}%`]),
-
-    // Active advance deductions per employee
     db.query<any>(`
       SELECT employee_id, COALESCE(SUM(monthly_amt), 0) AS total
-      FROM employee_advances
-      WHERE status = 'active'
-      GROUP BY employee_id
+      FROM employee_advances WHERE status = 'active' GROUP BY employee_id
     `),
-
-    // TDS already deducted in this FY per employee
     db.query<any>(`
       SELECT pr.employee_id,
-             COUNT(*)                              AS processed_count,
-             COALESCE(SUM(pr.tds_deduction), 0)   AS tds_total
+             COUNT(*)                            AS processed_count,
+             COALESCE(SUM(pr.tds_deduction), 0) AS tds_total
       FROM payroll_records pr
       JOIN payroll_runs run ON pr.run_id = run.id
       WHERE run.status IN ('processed', 'paid')
         AND ((run.year = ? AND run.month >= 4) OR (run.year = ? AND run.month <= 3))
       GROUP BY pr.employee_id
     `, [fyStartYear, fyEndYear]),
+    db.query<any>(`
+      SELECT ga.employee_id, COALESCE(SUM(ga.provision_amount), 0) AS historical_total
+      FROM gratuity_accruals ga
+      JOIN payroll_runs pr ON ga.run_id = pr.id
+      WHERE (pr.year < ? OR (pr.year = ? AND pr.month < ?))
+      GROUP BY ga.employee_id
+    `, [year, year, month]),
   ]);
 
-  const stateTaxMap = new Map(stateTaxRows.map(r => [r.state.trim().toLowerCase(), r.amount]));
-  const attMap      = new Map(allAtt.map((r: any) => [r.user_id,      r]));
-  const advMap      = new Map(allAdv.map((r: any) => [r.employee_id,  Number(r.total)]));
-  const tdsMap      = new Map(allTds.map((r: any) => [r.employee_id,  r]));
+  const stateTaxMap  = new Map(stateTaxRows.map(r => [r.state.trim().toLowerCase(), r.amount]));
+  const lwfMap       = new Map(lwfRows.map((r: any) => [r.state.trim().toLowerCase(), r]));
+  const statutoryMap = new Map(statutoryRows.map((r: any) => [r.employee_id, r]));
+  const attMap       = new Map(allAtt.map((r: any) => [r.user_id, r]));
+  const advMap       = new Map(allAdv.map((r: any) => [r.employee_id, Number(r.total)]));
+  const tdsMap       = new Map(allTds.map((r: any) => [r.employee_id, r]));
+  const gratMap      = new Map(historicalGratuity.map((r: any) => [r.employee_id, Number(r.historical_total)]));
 
-  // Build all row values in-memory, then insert in one statement
   const rowValues: unknown[] = [];
+  const gratValues: unknown[] = [];
+
   for (const emp of employees) {
     const att         = attMap.get(emp.id);
     const presentDays = Number(att?.present_days ?? 0);
@@ -185,34 +196,59 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
     const tdsRow              = tdsMap.get(emp.id);
     const processedMonthsInFY = Number(tdsRow?.processed_count ?? 0);
     const tdsAlreadyDeducted  = Number(tdsRow?.tds_total       ?? 0);
+    const regime              = (emp.tax_regime || 'new') as 'old' | 'new';
+    const { monthlyTds }      = computeAnnualTax(grossSalary, regime, month, year, emp.date_of_joining, tdsAlreadyDeducted, processedMonthsInFY);
 
-    const regime = (emp.tax_regime || 'new') as 'old' | 'new';
-    const { monthlyTds } = computeAnnualTax(
-      grossSalary, regime, month, year, emp.date_of_joining, tdsAlreadyDeducted, processedMonthsInFY,
-    );
+    const statutory   = statutoryMap.get(emp.id) ?? { epf_exempt: false, esic_exempt: false, lwf_exempt: false };
+    const epf         = calcEpf(emp.basic_salary, !!statutory.epf_exempt);
+    const esic        = calcEsic(grossSalary, !!statutory.esic_exempt);
+    const lwfConfig   = lwfMap.get(empState);
+    const lwf         = lwfConfig
+      ? calcLwf(lwfConfig.employee_amount, lwfConfig.employer_amount, lwfConfig.frequency, month, !!statutory.lwf_exempt)
+      : { employee: 0, employer: 0 };
+    const gratProvision  = calcGratuityProvision(emp.basic_salary);
+    const historicalGrat = gratMap.get(emp.id) ?? 0;
+    const cumulativeGrat = Math.round((historicalGrat + gratProvision) * 100) / 100;
 
     rowValues.push(
       runId, emp.id, emp.basic_salary, totalAllowances,
-      emp.meal_allowance, emp.conveyance_allowance,
-      emp.deductions,
-      totalDays, presentDays, leaveDays, absentDays, lopDays, lopDeduction, profTax, advanceDeduction,
-      monthlyTds,
+      emp.meal_allowance, emp.conveyance_allowance, emp.deductions,
+      totalDays, presentDays, leaveDays, absentDays, lopDays, lopDeduction, profTax, advanceDeduction, monthlyTds,
+      epf.employee, epf.epfEmployer, epf.epsEmployer,
+      esic.employee, esic.employer,
+      lwf.employee, lwf.employer,
+      gratProvision,
       now, now,
     );
+
+    gratValues.push(runId, emp.id, month, year, emp.basic_salary, gratProvision, cumulativeGrat, now);
   }
 
   if (employees.length > 0) {
-    const cols = 18;
-    const placeholders = employees
-      .map((_, i) => `(${Array.from({ length: cols }, (__, j) => `?`).join(', ')})`)
-      .join(', ');
+    const cols = 26;
+    const placeholders = employees.map(() => `(${Array.from({ length: cols }, () => '?').join(', ')})`).join(', ');
     await db.run(
       `INSERT INTO payroll_records
         (run_id, employee_id, basic_salary, allowances, meal_allowance, conveyance_allowance, deductions,
-         working_days, present_days, leave_days, absent_days, lop_days, lop_deduction, prof_tax, advance_deduction,
-         tds_deduction, created_at, updated_at)
+         working_days, present_days, leave_days, absent_days, lop_days, lop_deduction, prof_tax, advance_deduction, tds_deduction,
+         epf_employee, epf_employer, eps_employer,
+         esic_employee, esic_employer,
+         lwf_employee, lwf_employer,
+         gratuity_provision,
+         created_at, updated_at)
        VALUES ${placeholders}`,
       rowValues,
+    );
+
+    const gCols = 8;
+    const gPlaceholders = employees.map(() => `(${Array.from({ length: gCols }, () => '?').join(', ')})`).join(', ');
+    await db.run(
+      `INSERT INTO gratuity_accruals (run_id, employee_id, month, year, basic_salary, provision_amount, cumulative_amount, created_at)
+       VALUES ${gPlaceholders}
+       ON CONFLICT (run_id, employee_id) DO UPDATE SET
+         provision_amount  = excluded.provision_amount,
+         cumulative_amount = excluded.cumulative_amount`,
+      gratValues,
     );
   }
 }
@@ -242,6 +278,7 @@ router.post('/:runId/regenerate', authenticateToken, requireRole('admin', 'hr', 
 
   const now = new Date().toISOString();
   await db.run('DELETE FROM payroll_records WHERE run_id = ?', [run.id]);
+  await db.run('DELETE FROM gratuity_accruals WHERE run_id = ?', [run.id]);
   await db.run('UPDATE payroll_runs SET updated_at = ? WHERE id = ?', [now, run.id]);
   await buildPayrollRecords(run.id, run.month, run.year, now);
 
