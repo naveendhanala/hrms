@@ -174,7 +174,7 @@ async function _runMigrations(): Promise<void> {
     )`),
     pool.query(`CREATE TABLE IF NOT EXISTS gratuity_accruals (
       id               SERIAL PRIMARY KEY,
-      run_id           INTEGER REFERENCES payroll_runs(id) ON DELETE CASCADE,
+      run_id           INTEGER NOT NULL REFERENCES payroll_runs(id) ON DELETE CASCADE,
       employee_id      INTEGER REFERENCES users(id) ON DELETE CASCADE,
       month            INTEGER NOT NULL,
       year             INTEGER NOT NULL,
@@ -194,7 +194,8 @@ async function _runMigrations(): Promise<void> {
       payment_date     TEXT NOT NULL DEFAULT '',
       recorded_by      INTEGER REFERENCES users(id),
       notes            TEXT NOT NULL DEFAULT '',
-      created_at       TEXT NOT NULL DEFAULT ''
+      created_at       TEXT NOT NULL DEFAULT '',
+      UNIQUE(employee_id, exit_date)
     )`),
   ]);
 
