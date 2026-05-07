@@ -82,6 +82,7 @@ export default function SalaryMasterPage() {
     const f = reviseForm[employeeId];
     if (!f) return;
     if (!f.effective_date) { flash('Effective date is required', true); return; }
+    if (!Number(f.basic_salary)) { flash('Basic salary must be greater than 0', true); return; }
     setReviseSaving(true);
     try {
       const payload: SalaryRevisePayload = {
