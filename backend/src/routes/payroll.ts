@@ -3,6 +3,7 @@ import db from '../db';
 import { authenticateToken, requireRole, AuthRequest } from '../middleware/auth';
 import { computeAnnualTax, getFY } from './taxComputation';
 import { calcEpf, calcEsic, calcLwf, calcGratuityProvision } from '../payroll/calculations';
+import { streamPayslipPdf, type PayslipData } from '../payroll/payslipPdf';
 
 const router = Router();
 
@@ -437,6 +438,87 @@ router.put('/prof-tax-states', authenticateToken, requireRole('admin', 'hr', 'vp
     [state, Number(amount), now],
   );
   res.json({ ok: true });
+});
+
+router.get('/:runId/payslip/:employeeId', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
+  const { runId, employeeId } = req.params;
+
+  const [run, record, emp, statutory, companyRows] = await Promise.all([
+    db.queryOne<any>('SELECT * FROM payroll_runs WHERE id = ?', [runId]),
+    db.queryOne<any>(`
+      SELECT r.*, u.emp_id, u.name AS employee_name, u.designation, u.department,
+             COALESCE(s.hra, 0) AS hra,
+             COALESCE(s.meal_allowance, 0) AS meal_allowance,
+             COALESCE(s.conveyance_allowance, 0) AS conveyance_allowance,
+             COALESCE(s.special_allowance, 0) AS special_allowance,
+             COALESCE(t.tax_regime, 'new') AS tax_regime
+      FROM payroll_records r
+      JOIN users u ON r.employee_id = u.id
+      LEFT JOIN salary_master s ON s.employee_id = r.employee_id
+      LEFT JOIN employee_tax_config t ON t.employee_id = r.employee_id
+      WHERE r.run_id = ? AND r.employee_id = ?
+    `, [runId, employeeId]),
+    db.queryOne<any>('SELECT * FROM users WHERE id = ?', [employeeId]),
+    db.queryOne<any>('SELECT * FROM employee_statutory_config WHERE employee_id = ?', [employeeId]),
+    db.query<{ key: string; value: string }>(`SELECT key, value FROM payroll_config WHERE key = ANY($1::text[])`, [['company_name','company_address','pf_registration_number','esic_registration_number','hr_email']]),
+  ]);
+
+  if (!run) return res.status(404).json({ error: 'Run not found' });
+  if (!record) return res.status(404).json({ error: 'Record not found' });
+
+  const cfg = Object.fromEntries(companyRows.map(r => [r.key, r.value]));
+  const gross = record.basic_salary + record.allowances;
+  const earned = gross - record.lop_deduction;
+  const totalEmpDeductions = record.epf_employee + record.esic_employee + record.lwf_employee + record.prof_tax + record.tds_deduction + record.advance_deduction;
+  const netSalary = earned - totalEmpDeductions;
+  const totalEmployerCost = record.epf_employer + record.eps_employer + record.esic_employer + record.lwf_employer + record.gratuity_provision;
+
+  const data: PayslipData = {
+    companyName:             cfg.company_name             ?? '',
+    companyAddress:          cfg.company_address          ?? '',
+    pfRegNumber:             cfg.pf_registration_number   ?? '',
+    esicRegNumber:           cfg.esic_registration_number ?? '',
+    hrEmail:                 cfg.hr_email                 ?? '',
+    empId:                   record.emp_id ?? String(employeeId),
+    employeeName:            record.employee_name,
+    designation:             record.designation ?? '',
+    department:              emp?.department ?? '',
+    uanNumber:               statutory?.uan_number ?? '',
+    panNumber:               statutory?.pan_number ?? '',
+    taxRegime:               record.tax_regime ?? 'new',
+    month:                   run.month,
+    year:                    run.year,
+    workingDays:             record.working_days,
+    presentDays:             record.present_days,
+    leaveDays:               record.leave_days,
+    absentDays:              record.absent_days,
+    lopDays:                 record.lop_days,
+    basicSalary:             record.basic_salary,
+    hra:                     record.hra ?? 0,
+    mealAllowance:           record.meal_allowance ?? 0,
+    conveyanceAllowance:     record.conveyance_allowance ?? 0,
+    specialAllowance:        record.special_allowance ?? 0,
+    grossSalary:             gross,
+    lopDeduction:            record.lop_deduction,
+    earnedSalary:            earned,
+    epfEmployee:             record.epf_employee,
+    esicEmployee:            record.esic_employee,
+    esicApplicable:          gross <= 21000 && !statutory?.esic_exempt,
+    lwfEmployee:             record.lwf_employee,
+    profTax:                 record.prof_tax,
+    tdsDeduction:            record.tds_deduction,
+    advanceDeduction:        record.advance_deduction,
+    netSalary,
+    epfEmployer:             record.epf_employer,
+    epsEmployer:             record.eps_employer,
+    esicEmployer:            record.esic_employer,
+    lwfEmployer:             record.lwf_employer,
+    gratuityProvision:       record.gratuity_provision,
+    totalEmployerCost,
+    totalCtc:                netSalary + totalEmployerCost,
+  };
+
+  streamPayslipPdf(data, res);
 });
 
 export default router;
