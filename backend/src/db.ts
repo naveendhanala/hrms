@@ -216,6 +216,25 @@ async function _runMigrations(): Promise<void> {
       created_at       TEXT NOT NULL DEFAULT '',
       UNIQUE(employee_id, exit_date)
     )`),
+    pool.query(`CREATE TABLE IF NOT EXISTS salary_master_history (
+  id                   SERIAL PRIMARY KEY,
+  employee_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  effective_date       DATE NOT NULL,
+  basic_salary         REAL NOT NULL DEFAULT 0,
+  hra                  REAL NOT NULL DEFAULT 0,
+  meal_allowance       REAL NOT NULL DEFAULT 0,
+  conveyance_allowance REAL NOT NULL DEFAULT 0,
+  special_allowance    REAL NOT NULL DEFAULT 0,
+  deductions           REAL NOT NULL DEFAULT 0,
+  arrears_processed    BOOLEAN NOT NULL DEFAULT FALSE,
+  created_by           INTEGER REFERENCES users(id),
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (employee_id, effective_date)
+)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_smh_employee  ON salary_master_history(employee_id)`),
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_smh_effective ON salary_master_history(employee_id, effective_date)`),
+    pool.query(`ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS arrears       REAL NOT NULL DEFAULT 0`),
+    pool.query(`ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS arrears_label TEXT NOT NULL DEFAULT ''`),
   ]);
 
   // Update role constraint to include vp_hr — drop any existing role check by dynamic name lookup
