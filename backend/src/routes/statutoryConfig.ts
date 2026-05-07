@@ -70,6 +70,9 @@ router.get('/lwf-states', authenticateToken, requireRole('admin', 'hr', 'vp_hr')
 router.put('/lwf-states', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { state, employee_amount, employer_amount, frequency } = req.body;
   if (!state) return res.status(400).json({ error: 'state is required' });
+  const validFrequencies = ['monthly', 'half_yearly', 'annually'];
+  if (frequency && !validFrequencies.includes(frequency))
+    return res.status(400).json({ error: 'frequency must be monthly, half_yearly, or annually' });
   await db.run(`
     INSERT INTO lwf_by_state (state, employee_amount, employer_amount, frequency)
     VALUES (?, ?, ?, ?)
