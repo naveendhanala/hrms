@@ -10,7 +10,9 @@ router.get('/accruals', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), 
            u.date_of_joining,
            COALESCE(SUM(ga.provision_amount), 0) AS total_accrued,
            MAX(ga.cumulative_amount) AS cumulative_amount,
-           MAX(ga.provision_amount)  AS last_monthly_provision
+           (SELECT ga2.provision_amount FROM gratuity_accruals ga2
+            WHERE ga2.employee_id = u.id
+            ORDER BY ga2.year DESC, ga2.month DESC LIMIT 1) AS last_monthly_provision
     FROM users u
     LEFT JOIN gratuity_accruals ga ON ga.employee_id = u.id
     WHERE u.role != 'admin' AND u.status = 'active'
