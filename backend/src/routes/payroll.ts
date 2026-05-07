@@ -139,6 +139,12 @@ router.post('/salary-master/:userId/revise', authenticateToken, requireRole('adm
 });
 
 router.get('/salary-master/:userId/history', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
+  const userId = parseInt(req.params.userId, 10);
+  if (isNaN(userId)) return res.status(400).json({ error: 'Invalid employee ID' });
+
+  const user = await db.queryOne("SELECT id FROM users WHERE id = ? AND role != 'admin'", [userId]);
+  if (!user) return res.status(404).json({ error: 'Employee not found' });
+
   const rows = await db.query(`
     SELECT
       h.id,
@@ -156,7 +162,7 @@ router.get('/salary-master/:userId/history', authenticateToken, requireRole('adm
     LEFT JOIN users u ON u.id = h.created_by
     WHERE h.employee_id = ?
     ORDER BY h.effective_date DESC
-  `, [Number(req.params.userId)]);
+  `, [userId]);
 
   res.json(rows);
 });
