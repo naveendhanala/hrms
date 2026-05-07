@@ -34,6 +34,25 @@ export const db = {
       lastInsertRowid: result.rows[0]?.id ?? 0,
     };
   },
+  async transaction<T>(fn: (tx: { run(sql: string, args?: unknown[]): Promise<void> }) => Promise<T>): Promise<T> {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const tx = {
+        async run(sql: string, args: unknown[] = []) {
+          await client.query(toPgSql(sql), args);
+        },
+      };
+      const result = await fn(tx);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
 };
 
 let _initialized = false;

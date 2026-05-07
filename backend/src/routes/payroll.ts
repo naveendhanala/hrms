@@ -86,7 +86,7 @@ router.get('/', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (r
            COALESCE(r.lwf_employee,        0) as lwf_employee,
            COALESCE(r.lwf_employer,        0) as lwf_employer,
            COALESCE(r.gratuity_provision,  0) as gratuity_provision,
-           sc.epf_exempt, sc.esic_exempt
+           COALESCE(sc.epf_exempt, false) as epf_exempt, COALESCE(sc.esic_exempt, false) as esic_exempt
     FROM payroll_records r
     JOIN users u ON r.employee_id = u.id
     LEFT JOIN users m ON u.reporting_manager_id = m.id
@@ -102,7 +102,7 @@ router.get('/history', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), a
   const runs = await db.query(`
     SELECT pr.*, u.name as created_by_name,
            COUNT(r.id) as employee_count,
-           SUM(r.basic_salary + r.allowances - r.lop_deduction - r.prof_tax - r.deductions - r.tds_deduction) as total_net
+           SUM(r.basic_salary + r.allowances - r.lop_deduction - r.prof_tax - r.deductions - r.tds_deduction - COALESCE(r.epf_employee,0) - COALESCE(r.esic_employee,0) - COALESCE(r.lwf_employee,0)) as total_net
     FROM payroll_runs pr
     JOIN users u ON pr.created_by = u.id
     LEFT JOIN payroll_records r ON r.run_id = pr.id
@@ -227,29 +227,31 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
   if (employees.length > 0) {
     const cols = 26;
     const placeholders = employees.map(() => `(${Array.from({ length: cols }, () => '?').join(', ')})`).join(', ');
-    await db.run(
-      `INSERT INTO payroll_records
-        (run_id, employee_id, basic_salary, allowances, meal_allowance, conveyance_allowance, deductions,
-         working_days, present_days, leave_days, absent_days, lop_days, lop_deduction, prof_tax, advance_deduction, tds_deduction,
-         epf_employee, epf_employer, eps_employer,
-         esic_employee, esic_employer,
-         lwf_employee, lwf_employer,
-         gratuity_provision,
-         created_at, updated_at)
-       VALUES ${placeholders}`,
-      rowValues,
-    );
-
     const gCols = 8;
     const gPlaceholders = employees.map(() => `(${Array.from({ length: gCols }, () => '?').join(', ')})`).join(', ');
-    await db.run(
-      `INSERT INTO gratuity_accruals (run_id, employee_id, month, year, basic_salary, provision_amount, cumulative_amount, created_at)
-       VALUES ${gPlaceholders}
-       ON CONFLICT (run_id, employee_id) DO UPDATE SET
-         provision_amount  = excluded.provision_amount,
-         cumulative_amount = excluded.cumulative_amount`,
-      gratValues,
-    );
+
+    await db.transaction(async (tx) => {
+      await tx.run(
+        `INSERT INTO payroll_records
+          (run_id, employee_id, basic_salary, allowances, meal_allowance, conveyance_allowance, deductions,
+           working_days, present_days, leave_days, absent_days, lop_days, lop_deduction, prof_tax, advance_deduction, tds_deduction,
+           epf_employee, epf_employer, eps_employer,
+           esic_employee, esic_employer,
+           lwf_employee, lwf_employer,
+           gratuity_provision,
+           created_at, updated_at)
+         VALUES ${placeholders}`,
+        rowValues,
+      );
+      await tx.run(
+        `INSERT INTO gratuity_accruals (run_id, employee_id, month, year, basic_salary, provision_amount, cumulative_amount, created_at)
+         VALUES ${gPlaceholders}
+         ON CONFLICT (run_id, employee_id) DO UPDATE SET
+           provision_amount  = excluded.provision_amount,
+           cumulative_amount = excluded.cumulative_amount`,
+        gratValues,
+      );
+    });
   }
 }
 
