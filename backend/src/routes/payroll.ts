@@ -4,6 +4,7 @@ import { authenticateToken, requireRole, AuthRequest } from '../middleware/auth'
 import { computeAnnualTax, getFY } from './taxComputation';
 import { calcEpf, calcEsic, calcLwf, calcGratuityProvision } from '../payroll/calculations';
 import { streamPayslipPdf, type PayslipData } from '../payroll/payslipPdf';
+import { buildEcrText, buildEsiCsv, buildLwfCsv } from '../payroll/exports';
 
 const router = Router();
 
@@ -438,6 +439,49 @@ router.put('/prof-tax-states', authenticateToken, requireRole('admin', 'hr', 'vp
     [state, Number(amount), now],
   );
   res.json({ ok: true });
+});
+
+async function getRunRecordsForExport(runId: string) {
+  return db.query(`
+    SELECT r.*, u.emp_id, u.name AS employee_name, u.state AS employee_state,
+           COALESCE(sc.uan_number,  '') AS uan_number,
+           COALESCE(sc.esic_number, '') AS esic_number
+    FROM payroll_records r
+    JOIN users u ON r.employee_id = u.id
+    LEFT JOIN employee_statutory_config sc ON sc.employee_id = r.employee_id
+    WHERE r.run_id = ?
+    ORDER BY u.name ASC
+  `, [runId]);
+}
+
+router.get('/:runId/export/ecr', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
+  const run = await db.queryOne<any>('SELECT * FROM payroll_runs WHERE id = ?', [req.params.runId]);
+  if (!run) return res.status(404).json({ error: 'Run not found' });
+  const records = await getRunRecordsForExport(req.params.runId);
+  const content = buildEcrText(records);
+  res.setHeader('Content-Type', 'text/plain');
+  res.setHeader('Content-Disposition', `attachment; filename="ECR-${run.month}-${run.year}.txt"`);
+  res.send(content);
+});
+
+router.get('/:runId/export/esic', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
+  const run = await db.queryOne<any>('SELECT * FROM payroll_runs WHERE id = ?', [req.params.runId]);
+  if (!run) return res.status(404).json({ error: 'Run not found' });
+  const records = await getRunRecordsForExport(req.params.runId);
+  const content = buildEsiCsv(records);
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="ESI-Challan-${run.month}-${run.year}.csv"`);
+  res.send(content);
+});
+
+router.get('/:runId/export/lwf', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
+  const run = await db.queryOne<any>('SELECT * FROM payroll_runs WHERE id = ?', [req.params.runId]);
+  if (!run) return res.status(404).json({ error: 'Run not found' });
+  const records = await getRunRecordsForExport(req.params.runId);
+  const content = buildLwfCsv(records);
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="LWF-${run.month}-${run.year}.csv"`);
+  res.send(content);
 });
 
 router.get('/:runId/payslip/:employeeId', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
