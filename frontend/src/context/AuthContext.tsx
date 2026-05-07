@@ -8,7 +8,7 @@ export const ROLE_ROUTES: Record<UserRole, string> = {
   projectlead: '/dashboard',
   businesshead: '/dashboard',
   employee: '/dashboard',
-  vp_hr: '/employees',
+  vp_hr: '/dashboard',
 };
 
 interface AuthContextType {
