@@ -172,36 +172,35 @@ export const updateCompanyInfo = (data: Partial<CompanyInfo>) =>
     body: JSON.stringify(data),
   });
 
-export const downloadPayslip = (runId: number, employeeId: number): void => {
+function triggerBlobDownload(blob: Blob, filename: string) {
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(blobUrl);
+}
+
+function authFetch(url: string): Promise<Blob> {
   const token = localStorage.getItem('hrms_token');
-  const url = `${BASE}/${runId}/payslip/${employeeId}`;
-  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-    .then(r => r.blob())
-    .then(blob => {
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = `payslip-${employeeId}-${runId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
+  return fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    .then(r => {
+      if (!r.ok) throw new Error(`Download failed: ${r.status}`);
+      return r.blob();
     });
+}
+
+export const downloadPayslip = (runId: number, employeeId: number): void => {
+  authFetch(`${BASE}/${runId}/payslip/${employeeId}`)
+    .then(blob => triggerBlobDownload(blob, `payslip-${employeeId}-${runId}.pdf`))
+    .catch(err => console.error(err));
 };
 
 export const downloadExport = (runId: number, type: 'ecr' | 'esic' | 'lwf'): void => {
-  const token = localStorage.getItem('hrms_token');
-  const url = `${BASE}/${runId}/export/${type}`;
-  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-    .then(r => r.blob())
-    .then(blob => {
-      const ext  = type === 'ecr' ? 'txt' : 'csv';
-      const name = `${type.toUpperCase()}-export.${ext}`;
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl; a.download = name;
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
-    });
+  const ext = type === 'ecr' ? 'txt' : 'csv';
+  authFetch(`${BASE}/${runId}/export/${type}`)
+    .then(blob => triggerBlobDownload(blob, `${type.toUpperCase()}-export.${ext}`))
+    .catch(err => console.error(err));
 };

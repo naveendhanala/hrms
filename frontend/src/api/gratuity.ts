@@ -21,7 +21,7 @@ export interface GratuityDisbursement {
   paid_amount: number;
   payment_date: string;
   recorded_by_name: string | null;
-  notes: string;
+  notes: string | null;
   created_at: string;
 }
 

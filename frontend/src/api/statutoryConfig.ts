@@ -24,8 +24,8 @@ const BASE = '/api/payroll';
 export const getStatutoryConfig = () =>
   apiFetch<EmployeeStatutoryConfig[]>(`${BASE}/statutory-config`);
 
-export const updateStatutoryConfig = (userId: number, data: Partial<EmployeeStatutoryConfig>) =>
-  apiFetch<{ ok: boolean }>(`${BASE}/statutory-config/${userId}`, {
+export const updateStatutoryConfig = (employeeId: number, data: Partial<EmployeeStatutoryConfig>) =>
+  apiFetch<{ ok: boolean }>(`${BASE}/statutory-config/${employeeId}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   });
