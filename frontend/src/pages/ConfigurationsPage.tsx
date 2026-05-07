@@ -196,6 +196,7 @@ export default function ConfigurationsPage() {
     esic_registration_number: '', hr_email: '',
   });
   const [companySaving, setCompanySaving] = useState(false);
+  const [companyLoading, setCompanyLoading] = useState(true);
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
 
@@ -220,7 +221,9 @@ export default function ConfigurationsPage() {
   }, []);
 
   const loadCompanyInfo = useCallback(async () => {
+    setCompanyLoading(true);
     try { setCompanyInfo(await getCompanyInfo()); } catch {}
+    finally { setCompanyLoading(false); }
   }, []);
 
   useEffect(() => {
@@ -605,7 +608,7 @@ export default function ConfigurationsPage() {
                         <td style={{ padding: '10px 16px', textAlign: 'right', paddingRight: 20 }}>
                           <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                             <button
-                              onClick={() => setEditingLwf(null)}
+                              onClick={() => { setEditingLwf(null); setEditLwfInput({ employee_amount: 0, employer_amount: 0, frequency: 'monthly' }); }}
                               style={{ fontSize: 12, padding: '4px 12px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', color: '#6b7280', fontWeight: 600 }}
                             >Cancel</button>
                             <button
@@ -727,7 +730,7 @@ export default function ConfigurationsPage() {
                           <td style={{ padding: '8px 16px', textAlign: 'right', paddingRight: 20 }}>
                             <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                               <button
-                                onClick={() => setEditingStatutory(null)}
+                                onClick={() => { setEditingStatutory(null); setEditStatutoryInput({}); }}
                                 style={{ fontSize: 12, padding: '4px 12px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', color: '#6b7280', fontWeight: 600 }}
                               >Cancel</button>
                               <button
@@ -789,7 +792,8 @@ export default function ConfigurationsPage() {
             </p>
           </div>
           <div style={{ padding: '24px 28px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
+            {companyLoading && <p style={{ color: '#9ca3af', fontSize: 13, margin: '0 0 16px' }}>Loading…</p>}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px', opacity: companyLoading ? 0.4 : 1, pointerEvents: companyLoading ? 'none' : 'auto' }}>
               {/* Company Name */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>Company Name</label>
