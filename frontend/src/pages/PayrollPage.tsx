@@ -3,9 +3,10 @@ import AppLayout from '../components/shared/AppLayout';
 import {
   getPayrollRun, getPayrollHistory, generatePayroll, regeneratePayroll,
   updatePayrollStatus, downloadExport,
-  type PayrollRun, type PayrollHistoryItem, type PayrollRecord,
+  type PayrollRun, type PayrollHistoryItem,
 } from '../api/payroll';
 import PayrollCTCTable from '../components/payroll/PayrollCTCTable';
+import { calcNetPay } from '../utils/payroll';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -25,20 +26,6 @@ function StatusBadge({ status }: { status: 'draft' | 'processed' | 'paid' }) {
     <span style={{ padding: '3px 12px', borderRadius: 999, fontSize: 12, fontWeight: 600, background: c.bg, color: c.color }}>
       {c.label}
     </span>
-  );
-}
-
-function calcNetPay(r: PayrollRecord): number {
-  return (
-    r.gross_salary -
-    r.lop_deduction -
-    r.epf_employee -
-    r.esic_employee -
-    r.lwf_employee -
-    r.prof_tax -
-    r.tds_deduction -
-    r.advance_deduction -
-    r.deductions
   );
 }
 
@@ -67,8 +54,8 @@ export default function PayrollPage() {
     try {
       const data = await getPayrollRun(month, year);
       setRun(data);
-    } catch (e: any) {
-      setError(e.message || 'Failed to load payroll data');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load payroll data');
       setRun(null);
     } finally { setLoading(false); }
   }, [month, year]);
@@ -77,7 +64,7 @@ export default function PayrollPage() {
     setLoading(true);
     setError('');
     try { setHistory(await getPayrollHistory()); }
-    catch (e: any) { setError(e.message || 'Failed to load history'); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Failed to load history'); }
     finally { setLoading(false); }
   }, []);
 
@@ -101,9 +88,9 @@ export default function PayrollPage() {
     try {
       await generatePayroll(month, year);
       flash('Payroll run created');
-      loadRun();
-    } catch (e: any) {
-      flash(e.message || 'Failed to generate');
+      await loadRun();
+    } catch (e) {
+      flash(e instanceof Error ? e.message : 'Failed to generate');
     } finally { setGenerating(false); }
   };
 
@@ -114,9 +101,9 @@ export default function PayrollPage() {
     try {
       await regeneratePayroll(run.id);
       flash('Payroll re-generated successfully');
-      loadRun();
-    } catch (e: any) {
-      flash(e.message || 'Failed to re-generate');
+      await loadRun();
+    } catch (e) {
+      flash(e instanceof Error ? e.message : 'Failed to re-generate');
     } finally { setRegenerating(false); }
   };
 
@@ -126,9 +113,9 @@ export default function PayrollPage() {
     try {
       await updatePayrollStatus(run.id, status);
       flash(status === 'processed' ? 'Payroll marked as Processed' : 'Payroll marked as Paid');
-      loadRun();
-    } catch (e: any) {
-      flash(e.message || 'Failed');
+      await loadRun();
+    } catch (e) {
+      flash(e instanceof Error ? e.message : 'Failed');
     } finally { setStatusSaving(false); }
   };
 

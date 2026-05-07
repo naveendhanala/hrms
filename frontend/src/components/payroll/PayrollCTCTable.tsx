@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { downloadPayslip, type PayrollRecord } from '../../api/payroll';
+import { calcNetPay } from '../../utils/payroll';
 
 interface Props {
   records: PayrollRecord[];
@@ -70,20 +71,6 @@ const TFOOT_TD: React.CSSProperties = {
   background: '#f9fafb',
   borderTop: '2px solid #e5e7eb',
 };
-
-function calcNetPay(r: PayrollRecord): number {
-  return (
-    r.gross_salary -
-    r.lop_deduction -
-    r.epf_employee -
-    r.esic_employee -
-    r.lwf_employee -
-    r.prof_tax -
-    r.tds_deduction -
-    r.advance_deduction -
-    r.deductions
-  );
-}
 
 function calcTotalEmployeeDeductions(r: PayrollRecord): number {
   return (
