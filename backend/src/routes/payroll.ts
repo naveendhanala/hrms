@@ -224,7 +224,10 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
   const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
   const { fyStartYear, fyEndYear } = getFY(month, year);
 
-  const [employees, stateTaxRows, lwfRows, statutoryRows, allAtt, allAdv, allTds, historicalGratuity] = await Promise.all([
+  const firstOfMonth = `${year}-${String(month).padStart(2, '0')}-01`;
+  const lastOfMonth  = `${year}-${String(month).padStart(2, '0')}-${String(getDaysInMonth(month, year)).padStart(2, '0')}`;
+
+  const [employees, stateTaxRows, lwfRows, statutoryRows, allAtt, allAdv, allTds, historicalGratuity, allSalaryHistory] = await Promise.all([
     db.query<any>(`
       SELECT u.id, u.state, u.date_of_joining,
              COALESCE(s.basic_salary,           0) AS basic_salary,
@@ -271,6 +274,38 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
       WHERE (pr.year < ? OR (pr.year = ? AND pr.month < ?))
       GROUP BY ga.employee_id
     `, [year, year, month]),
+    db.query<any>(`
+      SELECT
+        h.id,
+        h.employee_id,
+        h.effective_date::text AS effective_date,
+        h.basic_salary,
+        h.hra,
+        h.meal_allowance,
+        h.conveyance_allowance,
+        h.special_allowance,
+        h.arrears_processed,
+        prev.basic_salary         AS prev_basic,
+        prev.hra                  AS prev_hra,
+        prev.meal_allowance       AS prev_meal,
+        prev.conveyance_allowance AS prev_conv,
+        prev.special_allowance    AS prev_special,
+        sm.basic_salary           AS sm_basic,
+        sm.hra                    AS sm_hra,
+        sm.meal_allowance         AS sm_meal,
+        sm.conveyance_allowance   AS sm_conv,
+        sm.special_allowance      AS sm_special
+      FROM salary_master_history h
+      LEFT JOIN salary_master sm ON sm.employee_id = h.employee_id
+      LEFT JOIN LATERAL (
+        SELECT basic_salary, hra, meal_allowance, conveyance_allowance, special_allowance
+        FROM salary_master_history h2
+        WHERE h2.employee_id = h.employee_id AND h2.effective_date < h.effective_date
+        ORDER BY h2.effective_date DESC LIMIT 1
+      ) prev ON TRUE
+      WHERE (h.effective_date >= ? AND h.effective_date <= ?)
+         OR (h.effective_date < ?  AND h.arrears_processed = FALSE)
+    `, [firstOfMonth, lastOfMonth, firstOfMonth]),
   ]);
 
   const stateTaxMap  = new Map(stateTaxRows.map(r => [r.state.trim().toLowerCase(), r.amount]));
@@ -280,6 +315,24 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
   const advMap       = new Map(allAdv.map((r: any) => [r.employee_id, Number(r.total)]));
   const tdsMap       = new Map(allTds.map((r: any) => [r.employee_id, r]));
   const gratMap      = new Map(historicalGratuity.map((r: any) => [r.employee_id, Number(r.historical_total)]));
+
+  interface EmpHistEntry {
+    midMonth: any | null;
+    arrearRevisions: any[];
+  }
+  const historyMap = new Map<number, EmpHistEntry>();
+  for (const h of allSalaryHistory) {
+    if (!historyMap.has(h.employee_id)) {
+      historyMap.set(h.employee_id, { midMonth: null, arrearRevisions: [] });
+    }
+    const entry = historyMap.get(h.employee_id)!;
+    if (h.effective_date >= firstOfMonth && h.effective_date <= lastOfMonth) {
+      entry.midMonth = h;
+    } else {
+      entry.arrearRevisions.push(h);
+    }
+  }
+  const allProcessedHistoryIds: number[] = [];
 
   const rowValues: unknown[] = [];
   const gratValues: unknown[] = [];
@@ -291,9 +344,39 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
     const absentDays  = Number(att?.absent_days  ?? 0);
     const lopDays     = Number(att?.lop_days     ?? 0);
 
-    const totalAllowances = emp.hra + emp.meal_allowance + emp.conveyance_allowance + emp.special_allowance;
-    const grossSalary     = emp.basic_salary + totalAllowances;
-    const lopDeduction    = totalDays > 0 ? Math.round((lopDays * grossSalary) / totalDays * 100) / 100 : 0;
+    const empHist = historyMap.get(emp.id) ?? { midMonth: null, arrearRevisions: [] };
+
+    // Determine salary components (prorate if mid-month revision exists)
+    let basicSalary      = emp.basic_salary;
+    let totalAllowances  = emp.hra + emp.meal_allowance + emp.conveyance_allowance + emp.special_allowance;
+    let grossSalary      = basicSalary + totalAllowances;
+    let epfBasic         = emp.basic_salary; // EPF uses month-end basic
+
+    if (empHist.midMonth) {
+      const rev        = empHist.midMonth;
+      const effDay     = parseInt(rev.effective_date.slice(8, 10), 10);
+      const daysBefore = effDay - 1;
+      const daysFrom   = totalDays - daysBefore;
+
+      const oldBasic      = Number(rev.prev_basic   ?? emp.basic_salary);
+      const oldHra        = Number(rev.prev_hra      ?? emp.hra);
+      const oldMeal       = Number(rev.prev_meal     ?? emp.meal_allowance);
+      const oldConv       = Number(rev.prev_conv     ?? emp.conveyance_allowance);
+      const oldSpec       = Number(rev.prev_special  ?? emp.special_allowance);
+      const oldAllowances = oldHra + oldMeal + oldConv + oldSpec;
+      const oldGross      = oldBasic + oldAllowances;
+
+      const newBasic      = Number(rev.basic_salary);
+      const newAllowances = Number(rev.hra) + Number(rev.meal_allowance) + Number(rev.conveyance_allowance) + Number(rev.special_allowance);
+      const newGross      = newBasic + newAllowances;
+
+      basicSalary     = Math.round((oldBasic / totalDays * daysBefore + newBasic / totalDays * daysFrom) * 100) / 100;
+      totalAllowances = Math.round((oldAllowances / totalDays * daysBefore + newAllowances / totalDays * daysFrom) * 100) / 100;
+      grossSalary     = Math.round((oldGross / totalDays * daysBefore + newGross / totalDays * daysFrom) * 100) / 100;
+      epfBasic        = newBasic; // EPF/gratuity uses month-end (new) basic
+    }
+
+    const lopDeduction = totalDays > 0 ? Math.round((lopDays * grossSalary) / totalDays * 100) / 100 : 0;
 
     const empState = (emp.state || '').trim().toLowerCase();
     const profTax  = empState && stateTaxMap.has(empState) ? stateTaxMap.get(empState)! : 0;
@@ -306,33 +389,65 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
     const regime              = (emp.tax_regime || 'new') as 'old' | 'new';
     const { monthlyTds }      = computeAnnualTax(grossSalary, regime, month, year, emp.date_of_joining, tdsAlreadyDeducted, processedMonthsInFY);
 
-    const statutory   = statutoryMap.get(emp.id) ?? { epf_exempt: false, esic_exempt: false, lwf_exempt: false };
-    const epf         = calcEpf(emp.basic_salary, !!statutory.epf_exempt);
-    const esic        = calcEsic(grossSalary, !!statutory.esic_exempt);
-    const lwfConfig   = lwfMap.get(empState);
-    const lwf         = lwfConfig
+    const statutory  = statutoryMap.get(emp.id) ?? { epf_exempt: false, esic_exempt: false, lwf_exempt: false };
+    const epf        = calcEpf(epfBasic, !!statutory.epf_exempt);
+    const esic       = calcEsic(grossSalary, !!statutory.esic_exempt);
+    const lwfConfig  = lwfMap.get(empState);
+    const lwf        = lwfConfig
       ? calcLwf(lwfConfig.employee_amount, lwfConfig.employer_amount, lwfConfig.frequency, month, !!statutory.lwf_exempt)
       : { employee: 0, employer: 0 };
-    const gratProvision  = calcGratuityProvision(emp.basic_salary);
+    const gratProvision  = calcGratuityProvision(epfBasic);
     const historicalGrat = gratMap.get(emp.id) ?? 0;
     const cumulativeGrat = Math.round((historicalGrat + gratProvision) * 100) / 100;
 
+    // Compute arrears for unprocessed retroactive revisions
+    const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    let arrears      = 0;
+    let arrearsLabel = '';
+
+    for (const rev of empHist.arrearRevisions) {
+      const effDate       = new Date(rev.effective_date);
+      const pastMonth     = effDate.getMonth() + 1;
+      const pastYear      = effDate.getFullYear();
+      const pastTotalDays = getDaysInMonth(pastMonth, pastYear);
+      const effDay        = effDate.getDate();
+      const daysUnderNew  = pastTotalDays - effDay + 1;
+
+      const oldBasic = Number(rev.prev_basic   ?? rev.sm_basic   ?? 0);
+      const oldHra   = Number(rev.prev_hra     ?? rev.sm_hra     ?? 0);
+      const oldMeal  = Number(rev.prev_meal    ?? rev.sm_meal    ?? 0);
+      const oldConv  = Number(rev.prev_conv    ?? rev.sm_conv    ?? 0);
+      const oldSpec  = Number(rev.prev_special ?? rev.sm_special ?? 0);
+      const oldGross = oldBasic + oldHra + oldMeal + oldConv + oldSpec;
+
+      const newGross = Number(rev.basic_salary) + Number(rev.hra) + Number(rev.meal_allowance) + Number(rev.conveyance_allowance) + Number(rev.special_allowance);
+
+      arrears += (newGross - oldGross) / pastTotalDays * daysUnderNew;
+      allProcessedHistoryIds.push(rev.id);
+
+      arrearsLabel = empHist.arrearRevisions.length === 1
+        ? `${MONTHS_SHORT[effDate.getMonth()]} ${pastYear}`
+        : 'Prior Months';
+    }
+    arrears = Math.round(arrears * 100) / 100;
+
     rowValues.push(
-      runId, emp.id, emp.basic_salary, totalAllowances,
+      runId, emp.id, basicSalary, totalAllowances,
       emp.meal_allowance, emp.conveyance_allowance, emp.deductions,
       totalDays, presentDays, leaveDays, absentDays, lopDays, lopDeduction, profTax, advanceDeduction, monthlyTds,
       epf.employee, epf.epfEmployer, epf.epsEmployer,
       esic.employee, esic.employer,
       lwf.employee, lwf.employer,
       gratProvision,
+      arrears, arrearsLabel,
       now, now,
     );
 
-    gratValues.push(runId, emp.id, month, year, emp.basic_salary, gratProvision, cumulativeGrat, now);
+    gratValues.push(runId, emp.id, month, year, epfBasic, gratProvision, cumulativeGrat, now);
   }
 
   if (employees.length > 0) {
-    const cols = 26;
+    const cols = 28;
     const placeholders = employees.map(() => `(${Array.from({ length: cols }, () => '?').join(', ')})`).join(', ');
     const gCols = 8;
     const gPlaceholders = employees.map(() => `(${Array.from({ length: gCols }, () => '?').join(', ')})`).join(', ');
@@ -346,6 +461,7 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
            esic_employee, esic_employer,
            lwf_employee, lwf_employer,
            gratuity_provision,
+           arrears, arrears_label,
            created_at, updated_at)
          VALUES ${placeholders}`,
         rowValues,
@@ -358,6 +474,13 @@ async function buildPayrollRecords(runId: number, month: number, year: number, n
            cumulative_amount = excluded.cumulative_amount`,
         gratValues,
       );
+      if (allProcessedHistoryIds.length > 0) {
+        const idPlaceholders = allProcessedHistoryIds.map(() => '?').join(', ');
+        await tx.run(
+          `UPDATE salary_master_history SET arrears_processed = TRUE WHERE id IN (${idPlaceholders})`,
+          allProcessedHistoryIds,
+        );
+      }
     });
   }
 }
