@@ -23,6 +23,16 @@ export interface PayrollRecord {
   prof_tax: number;
   advance_deduction: number;
   tds_deduction: number;
+  epf_employee: number;
+  epf_employer: number;
+  eps_employer: number;
+  esic_employee: number;
+  esic_employer: number;
+  lwf_employee: number;
+  lwf_employer: number;
+  gratuity_provision: number;
+  epf_exempt: boolean;
+  esic_exempt: boolean;
 }
 
 export interface PayrollRun {
@@ -144,3 +154,54 @@ export const updateSalaryMaster = (
     method: 'PUT',
     body: JSON.stringify(data),
   });
+
+export interface CompanyInfo {
+  company_name: string;
+  company_address: string;
+  pf_registration_number: string;
+  esic_registration_number: string;
+  hr_email: string;
+}
+
+export const getCompanyInfo = () =>
+  apiFetch<CompanyInfo>(`${BASE}/company-info`);
+
+export const updateCompanyInfo = (data: Partial<CompanyInfo>) =>
+  apiFetch<{ ok: boolean }>(`${BASE}/company-info`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+
+export const downloadPayslip = (runId: number, employeeId: number): void => {
+  const token = localStorage.getItem('hrms_token');
+  const url = `${BASE}/${runId}/payslip/${employeeId}`;
+  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    .then(r => r.blob())
+    .then(blob => {
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `payslip-${employeeId}-${runId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    });
+};
+
+export const downloadExport = (runId: number, type: 'ecr' | 'esic' | 'lwf'): void => {
+  const token = localStorage.getItem('hrms_token');
+  const url = `${BASE}/${runId}/export/${type}`;
+  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    .then(r => r.blob())
+    .then(blob => {
+      const ext  = type === 'ecr' ? 'txt' : 'csv';
+      const name = `${type.toUpperCase()}-export.${ext}`;
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl; a.download = name;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    });
+};
