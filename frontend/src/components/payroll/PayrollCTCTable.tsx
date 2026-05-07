@@ -111,13 +111,11 @@ function calcCTC(r: PayrollRecord): number {
 export default function PayrollCTCTable({ records, runId }: Props) {
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
-  const allEsicExempt = records.every(r => r.esic_exempt || (r.esic_employee === 0 && r.esic_employer === 0));
+  const allEsicExempt = records.length > 0 && records.every(r => r.esic_exempt || (r.esic_employee === 0 && r.esic_employer === 0));
 
   const handleDownload = (employeeId: number) => {
     setDownloadingId(employeeId);
-    // downloadPayslip is fire-and-forget (returns void)
-    downloadPayslip(runId, employeeId);
-    setTimeout(() => setDownloadingId(null), 1500);
+    downloadPayslip(runId, employeeId).finally(() => setDownloadingId(null));
   };
 
   // Totals

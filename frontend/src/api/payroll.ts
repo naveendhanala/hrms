@@ -192,11 +192,10 @@ function authFetch(url: string): Promise<Blob> {
     });
 }
 
-export const downloadPayslip = (runId: number, employeeId: number): void => {
+export const downloadPayslip = (runId: number, employeeId: number): Promise<void> =>
   authFetch(`${BASE}/${runId}/payslip/${employeeId}`)
     .then(blob => triggerBlobDownload(blob, `payslip-${employeeId}-${runId}.pdf`))
     .catch(err => console.error(err));
-};
 
 export const downloadExport = (runId: number, type: 'ecr' | 'esic' | 'lwf'): void => {
   const ext = type === 'ecr' ? 'txt' : 'csv';
