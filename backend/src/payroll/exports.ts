@@ -1,12 +1,13 @@
 export function buildEcrText(records: any[]): string {
-  const header = '#~#UAN~#~#MemberName~#~#GrossWages~#~#EPFWages~#~#EPSWages~#~#EDLIWages~#~#EPFContrib~#~#EPSContrib~#~#EPFEmployer~#~#NCPDays~#~#RefundOfAdvances';
+  const header = 'UAN~#~MemberName~#~GrossWages~#~EPFWages~#~EPSWages~#~EDLIWages~#~EPFContrib~#~EPSContrib~#~EPFEmployer~#~NCPDays~#~RefundOfAdvances';
   const lines = records.map(r => {
     const capped   = Math.min(Number(r.basic_salary), 15000);
     const epfWages = capped;
+    const earnedGross = Math.round(r.basic_salary + r.allowances - (r.lop_deduction || 0));
     return [
       r.uan_number || '',
       r.employee_name,
-      Math.round(r.basic_salary + r.allowances),
+      earnedGross,
       Math.round(epfWages),
       Math.round(epfWages),
       Math.round(epfWages),
@@ -27,7 +28,7 @@ export function buildEsiCsv(records: any[]): string {
     .map(r => [
       r.esic_number || '',
       `"${r.employee_name}"`,
-      Math.round(r.basic_salary + r.allowances),
+      Math.round(r.basic_salary + r.allowances - (r.lop_deduction || 0)),
       r.esic_employee.toFixed(2),
       r.esic_employer.toFixed(2),
       (r.esic_employee + r.esic_employer).toFixed(2),
