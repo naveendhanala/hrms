@@ -443,7 +443,7 @@ router.put('/prof-tax-states', authenticateToken, requireRole('admin', 'hr', 'vp
 router.get('/:runId/payslip/:employeeId', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const { runId, employeeId } = req.params;
 
-  const [run, record, emp, statutory, companyRows] = await Promise.all([
+  const [run, record, statutory, companyRows] = await Promise.all([
     db.queryOne<any>('SELECT * FROM payroll_runs WHERE id = ?', [runId]),
     db.queryOne<any>(`
       SELECT r.*, u.emp_id, u.name AS employee_name, u.designation, u.department,
@@ -458,7 +458,6 @@ router.get('/:runId/payslip/:employeeId', authenticateToken, requireRole('admin'
       LEFT JOIN employee_tax_config t ON t.employee_id = r.employee_id
       WHERE r.run_id = ? AND r.employee_id = ?
     `, [runId, employeeId]),
-    db.queryOne<any>('SELECT * FROM users WHERE id = ?', [employeeId]),
     db.queryOne<any>('SELECT * FROM employee_statutory_config WHERE employee_id = ?', [employeeId]),
     db.query<{ key: string; value: string }>(`SELECT key, value FROM payroll_config WHERE key = ANY($1::text[])`, [['company_name','company_address','pf_registration_number','esic_registration_number','hr_email']]),
   ]);
@@ -469,7 +468,7 @@ router.get('/:runId/payslip/:employeeId', authenticateToken, requireRole('admin'
   const cfg = Object.fromEntries(companyRows.map(r => [r.key, r.value]));
   const gross = record.basic_salary + record.allowances;
   const earned = gross - record.lop_deduction;
-  const totalEmpDeductions = record.epf_employee + record.esic_employee + record.lwf_employee + record.prof_tax + record.tds_deduction + record.advance_deduction;
+  const totalEmpDeductions = record.epf_employee + record.esic_employee + record.lwf_employee + record.prof_tax + record.tds_deduction + record.advance_deduction + (record.deductions ?? 0);
   const netSalary = earned - totalEmpDeductions;
   const totalEmployerCost = record.epf_employer + record.eps_employer + record.esic_employer + record.lwf_employer + record.gratuity_provision;
 
@@ -482,7 +481,7 @@ router.get('/:runId/payslip/:employeeId', authenticateToken, requireRole('admin'
     empId:                   record.emp_id ?? String(employeeId),
     employeeName:            record.employee_name,
     designation:             record.designation ?? '',
-    department:              emp?.department ?? '',
+    department:              record.department ?? '',
     uanNumber:               statutory?.uan_number ?? '',
     panNumber:               statutory?.pan_number ?? '',
     taxRegime:               record.tax_regime ?? 'new',
@@ -503,7 +502,7 @@ router.get('/:runId/payslip/:employeeId', authenticateToken, requireRole('admin'
     earnedSalary:            earned,
     epfEmployee:             record.epf_employee,
     esicEmployee:            record.esic_employee,
-    esicApplicable:          gross <= 21000 && !statutory?.esic_exempt,
+    esicApplicable:          record.esic_employee > 0,
     lwfEmployee:             record.lwf_employee,
     profTax:                 record.prof_tax,
     tdsDeduction:            record.tds_deduction,
