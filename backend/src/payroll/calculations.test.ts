@@ -36,6 +36,12 @@ describe('calcEsic', () => {
     expect(r.employee).toBe(0);
     expect(r.applicable).toBe(false);
   });
+  it('applies ESIC at exactly 21000 gross', () => {
+    const r = calcEsic(21000, false);
+    expect(r.applicable).toBe(true);
+    expect(r.employee).toBe(157.5);  // 0.75% of 21000
+    expect(r.employer).toBe(682.5);  // 3.25% of 21000
+  });
 });
 
 describe('isLwfApplicableMonth', () => {
@@ -50,6 +56,9 @@ describe('isLwfApplicableMonth', () => {
   it('annually applies only in December', () => {
     expect(isLwfApplicableMonth('annually', 12)).toBe(true);
     expect(isLwfApplicableMonth('annually', 6)).toBe(false);
+  });
+  it('returns false for unknown frequency', () => {
+    expect(isLwfApplicableMonth('quarterly', 3)).toBe(false);
   });
 });
 
@@ -68,6 +77,6 @@ describe('calcLwf', () => {
 describe('calcGratuityProvision', () => {
   it('calculates monthly provision correctly', () => {
     // (30000 * 15) / 26 / 12 = 1442.31
-    expect(calcGratuityProvision(30000)).toBeCloseTo(1442.31, 1);
+    expect(calcGratuityProvision(30000)).toBe(1442.31);
   });
 });
