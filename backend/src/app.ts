@@ -18,6 +18,7 @@ import attendanceRoutes from './routes/attendance/attendance';
 import usersRoutes from './routes/users';
 import payrollRoutes from './routes/payroll';
 import statutoryConfigRoutes from './routes/statutoryConfig';
+import gratuityRoutes from './routes/gratuity';
 import advancesRoutes from './routes/advances';
 import taxComputationRoutes from './routes/taxComputation';
 import announcementsRoutes from './routes/announcements';
@@ -61,6 +62,7 @@ app.use('/api/exit', exitRoutes);
 // Payroll module
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/payroll', statutoryConfigRoutes);
+app.use('/api/gratuity', gratuityRoutes);
 app.use('/api/advances', advancesRoutes);
 app.use('/api/tax-computation', taxComputationRoutes);
 
