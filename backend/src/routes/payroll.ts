@@ -138,6 +138,29 @@ router.post('/salary-master/:userId/revise', authenticateToken, requireRole('adm
   res.status(201).json({ ok: true, effective_date });
 });
 
+router.get('/salary-master/:userId/history', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
+  const rows = await db.query(`
+    SELECT
+      h.id,
+      h.effective_date::text AS effective_date,
+      h.basic_salary,
+      h.hra,
+      h.meal_allowance,
+      h.conveyance_allowance,
+      h.special_allowance,
+      h.deductions,
+      h.arrears_processed,
+      h.created_at,
+      u.name AS created_by_name
+    FROM salary_master_history h
+    LEFT JOIN users u ON u.id = h.created_by
+    WHERE h.employee_id = ?
+    ORDER BY h.effective_date DESC
+  `, [Number(req.params.userId)]);
+
+  res.json(rows);
+});
+
 router.get('/', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const now = new Date();
   const month = req.query.month ? Number(req.query.month) : now.getMonth() + 1;
