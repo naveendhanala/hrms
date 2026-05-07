@@ -146,6 +146,56 @@ async function _runMigrations(): Promise<void> {
   uploaded_at  TEXT NOT NULL DEFAULT ''
 )`),
     pool.query(`UPDATE candidates SET resume_url = NULL WHERE resume_url IS NOT NULL`),
+    pool.query(`ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS epf_employee       REAL NOT NULL DEFAULT 0`),
+    pool.query(`ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS epf_employer       REAL NOT NULL DEFAULT 0`),
+    pool.query(`ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS eps_employer       REAL NOT NULL DEFAULT 0`),
+    pool.query(`ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS esic_employee      REAL NOT NULL DEFAULT 0`),
+    pool.query(`ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS esic_employer      REAL NOT NULL DEFAULT 0`),
+    pool.query(`ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS lwf_employee       REAL NOT NULL DEFAULT 0`),
+    pool.query(`ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS lwf_employer       REAL NOT NULL DEFAULT 0`),
+    pool.query(`ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS gratuity_provision REAL NOT NULL DEFAULT 0`),
+    pool.query(`CREATE TABLE IF NOT EXISTS lwf_by_state (
+      id              SERIAL PRIMARY KEY,
+      state           TEXT UNIQUE NOT NULL,
+      employee_amount REAL NOT NULL DEFAULT 0,
+      employer_amount REAL NOT NULL DEFAULT 0,
+      frequency       TEXT NOT NULL DEFAULT 'monthly'
+    )`),
+    pool.query(`CREATE TABLE IF NOT EXISTS employee_statutory_config (
+      id          SERIAL PRIMARY KEY,
+      employee_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      uan_number  TEXT NOT NULL DEFAULT '',
+      esic_number TEXT NOT NULL DEFAULT '',
+      pan_number  TEXT NOT NULL DEFAULT '',
+      epf_exempt  BOOLEAN NOT NULL DEFAULT false,
+      esic_exempt BOOLEAN NOT NULL DEFAULT false,
+      lwf_exempt  BOOLEAN NOT NULL DEFAULT false,
+      updated_at  TEXT NOT NULL DEFAULT ''
+    )`),
+    pool.query(`CREATE TABLE IF NOT EXISTS gratuity_accruals (
+      id               SERIAL PRIMARY KEY,
+      run_id           INTEGER REFERENCES payroll_runs(id) ON DELETE CASCADE,
+      employee_id      INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      month            INTEGER NOT NULL,
+      year             INTEGER NOT NULL,
+      basic_salary     REAL NOT NULL DEFAULT 0,
+      provision_amount REAL NOT NULL DEFAULT 0,
+      cumulative_amount REAL NOT NULL DEFAULT 0,
+      created_at       TEXT NOT NULL DEFAULT '',
+      UNIQUE(run_id, employee_id)
+    )`),
+    pool.query(`CREATE TABLE IF NOT EXISTS gratuity_disbursements (
+      id               SERIAL PRIMARY KEY,
+      employee_id      INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      exit_date        TEXT NOT NULL DEFAULT '',
+      years_of_service REAL NOT NULL DEFAULT 0,
+      accrued_amount   REAL NOT NULL DEFAULT 0,
+      paid_amount      REAL NOT NULL DEFAULT 0,
+      payment_date     TEXT NOT NULL DEFAULT '',
+      recorded_by      INTEGER REFERENCES users(id),
+      notes            TEXT NOT NULL DEFAULT '',
+      created_at       TEXT NOT NULL DEFAULT ''
+    )`),
   ]);
 
   // Update role constraint to include vp_hr — drop any existing role check by dynamic name lookup
