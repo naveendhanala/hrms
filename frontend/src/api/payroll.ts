@@ -33,6 +33,8 @@ export interface PayrollRecord {
   gratuity_provision: number;
   epf_exempt: boolean;
   esic_exempt: boolean;
+  arrears: number;
+  arrears_label: string;
 }
 
 export interface PayrollRun {
@@ -69,6 +71,20 @@ export interface SalaryMasterEntry {
   special_allowance: number;
   deductions: number;
   updated_at: string | null;
+}
+
+export interface SalaryHistoryEntry {
+  id: number;
+  effective_date: string;
+  basic_salary: number;
+  hra: number;
+  meal_allowance: number;
+  conveyance_allowance: number;
+  special_allowance: number;
+  deductions: number;
+  arrears_processed: boolean;
+  created_at: string;
+  created_by_name: string | null;
 }
 
 const BASE = '/api/payroll';
@@ -154,6 +170,25 @@ export const updateSalaryMaster = (
     method: 'PUT',
     body: JSON.stringify(data),
   });
+
+export interface SalaryRevisePayload {
+  effective_date: string;
+  basic_salary: number;
+  hra: number;
+  meal_allowance: number;
+  conveyance_allowance: number;
+  special_allowance: number;
+  deductions: number;
+}
+
+export const reviseSalary = (userId: number, data: SalaryRevisePayload) =>
+  apiFetch<{ ok: boolean; effective_date: string }>(`${BASE}/salary-master/${userId}/revise`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+
+export const getSalaryHistory = (userId: number) =>
+  apiFetch<SalaryHistoryEntry[]>(`${BASE}/salary-master/${userId}/history`);
 
 export interface CompanyInfo {
   company_name: string;
