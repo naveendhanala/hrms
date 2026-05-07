@@ -62,6 +62,82 @@ router.put('/salary-master/:userId', authenticateToken, requireRole('admin', 'hr
   res.json({ ok: true });
 });
 
+router.post('/salary-master/:userId/revise', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
+  const { effective_date, basic_salary, hra, meal_allowance, conveyance_allowance, special_allowance, deductions } = req.body;
+
+  if (!effective_date || !/^\d{4}-\d{2}-\d{2}$/.test(effective_date)) {
+    return res.status(400).json({ error: 'effective_date must be a valid date (YYYY-MM-DD)' });
+  }
+
+  const user = await db.queryOne("SELECT id FROM users WHERE id = ? AND role != 'admin'", [req.params.userId]);
+  if (!user) return res.status(404).json({ error: 'Employee not found' });
+
+  // Check for same-calendar-month conflict
+  const [effYear, effMonth] = effective_date.split('-').map(Number);
+  const monthStart = `${effYear}-${String(effMonth).padStart(2, '0')}-01`;
+  const monthEnd   = `${effYear}-${String(effMonth).padStart(2, '0')}-${String(getDaysInMonth(effMonth, effYear)).padStart(2, '0')}`;
+
+  const existing = await db.queryOne(
+    `SELECT id FROM salary_master_history WHERE employee_id = ? AND effective_date >= ? AND effective_date <= ?`,
+    [Number(req.params.userId), monthStart, monthEnd],
+  );
+  if (existing) {
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return res.status(409).json({ error: `A salary revision already exists for this employee in ${MONTHS[effMonth - 1]} ${effYear}` });
+  }
+
+  const now = new Date().toISOString();
+  const today = now.slice(0, 10); // YYYY-MM-DD
+
+  await db.transaction(async (tx) => {
+    await tx.run(
+      `INSERT INTO salary_master_history
+         (employee_id, effective_date, basic_salary, hra, meal_allowance, conveyance_allowance, special_allowance, deductions, created_by, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        Number(req.params.userId),
+        effective_date,
+        basic_salary         ?? 0,
+        hra                  ?? 0,
+        meal_allowance       ?? 0,
+        conveyance_allowance ?? 0,
+        special_allowance    ?? 0,
+        deductions           ?? 0,
+        req.user!.id,
+        now,
+      ],
+    );
+
+    // If effective date is today or past, sync to salary_master
+    if (effective_date <= today) {
+      await tx.run(
+        `INSERT INTO salary_master (employee_id, basic_salary, hra, meal_allowance, conveyance_allowance, special_allowance, deductions, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(employee_id) DO UPDATE SET
+           basic_salary         = excluded.basic_salary,
+           hra                  = excluded.hra,
+           meal_allowance       = excluded.meal_allowance,
+           conveyance_allowance = excluded.conveyance_allowance,
+           special_allowance    = excluded.special_allowance,
+           deductions           = excluded.deductions,
+           updated_at           = excluded.updated_at`,
+        [
+          Number(req.params.userId),
+          basic_salary         ?? 0,
+          hra                  ?? 0,
+          meal_allowance       ?? 0,
+          conveyance_allowance ?? 0,
+          special_allowance    ?? 0,
+          deductions           ?? 0,
+          now,
+        ],
+      );
+    }
+  });
+
+  res.status(201).json({ ok: true, effective_date });
+});
+
 router.get('/', authenticateToken, requireRole('admin', 'hr', 'vp_hr'), async (req: AuthRequest, res: Response) => {
   const now = new Date();
   const month = req.query.month ? Number(req.query.month) : now.getMonth() + 1;
