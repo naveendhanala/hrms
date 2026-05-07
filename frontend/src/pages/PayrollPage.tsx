@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import AppLayout from '../components/shared/AppLayout';
 import {
   getPayrollRun, getPayrollHistory, generatePayroll, regeneratePayroll,
-  updatePayrollStatus,
-  type PayrollRun, type PayrollHistoryItem,
+  updatePayrollStatus, downloadExport,
+  type PayrollRun, type PayrollHistoryItem, type PayrollRecord,
 } from '../api/payroll';
+import PayrollCTCTable from '../components/payroll/PayrollCTCTable';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -27,13 +28,19 @@ function StatusBadge({ status }: { status: 'draft' | 'processed' | 'paid' }) {
   );
 }
 
-const TH_STYLE: React.CSSProperties = {
-  padding: '11px 12px', textAlign: 'left',
-  fontSize: 11, fontWeight: 600, color: '#9ca3af',
-  textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap',
-};
-
-const TD_R: React.CSSProperties = { padding: '12px 12px', fontSize: 13, textAlign: 'right' };
+function calcNetPay(r: PayrollRecord): number {
+  return (
+    r.gross_salary -
+    r.lop_deduction -
+    r.epf_employee -
+    r.esic_employee -
+    r.lwf_employee -
+    r.prof_tax -
+    r.tds_deduction -
+    r.advance_deduction -
+    r.deductions
+  );
+}
 
 export default function PayrollPage() {
   const now = new Date();
@@ -49,6 +56,8 @@ export default function PayrollPage() {
   const [statusSaving, setStatusSaving] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
+  const [exportsOpen, setExportsOpen] = useState(false);
+  const exportsRef = useRef<HTMLDivElement>(null);
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
 
@@ -74,6 +83,18 @@ export default function PayrollPage() {
 
   useEffect(() => { if (tab === 'process') loadRun(); }, [tab, loadRun]);
   useEffect(() => { if (tab === 'history') loadHistory(); }, [tab, loadHistory]);
+
+  // Close exports dropdown on outside click
+  useEffect(() => {
+    if (!exportsOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (exportsRef.current && !exportsRef.current.contains(e.target as Node)) {
+        setExportsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [exportsOpen]);
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -110,9 +131,6 @@ export default function PayrollPage() {
       flash(e.message || 'Failed');
     } finally { setStatusSaving(false); }
   };
-
-  const totalNet   = run?.records.reduce((s, r) => s + r.gross_salary - r.lop_deduction - (r.advance_deduction ?? 0) - r.prof_tax - (r.tds_deduction ?? 0), 0) ?? 0;
-  const totalGross = run?.records.reduce((s, r) => s + r.gross_salary, 0) ?? 0;
 
   return (
     <AppLayout>
@@ -191,6 +209,43 @@ export default function PayrollPage() {
                     background: '#dcfce7', color: '#166534', fontWeight: 600, fontSize: 13,
                   }}>Mark as Paid</button>
                 )}
+
+                {/* Exports dropdown */}
+                <div ref={exportsRef} style={{ position: 'relative' }}>
+                  <button
+                    onClick={() => setExportsOpen(o => !o)}
+                    style={{
+                      padding: '7px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13,
+                      background: '#fff', color: '#6b7280', border: '1px solid #d1d5db',
+                    }}
+                  >
+                    ↓ Exports
+                  </button>
+                  {exportsOpen && (
+                    <div style={{
+                      position: 'absolute', top: '100%', right: 0, zIndex: 10,
+                      background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)', minWidth: 160, marginTop: 4,
+                    }}>
+                      {([
+                        ['ECR (EPF)', 'ecr'],
+                        ['ESI Challan', 'esic'],
+                        ['LWF Statement', 'lwf'],
+                      ] as const).map(([label, type]) => (
+                        <button
+                          key={type}
+                          onClick={() => { downloadExport(run.id, type); setExportsOpen(false); }}
+                          style={{
+                            padding: '9px 16px', fontSize: 13, border: 'none', background: 'none',
+                            textAlign: 'left', cursor: 'pointer', width: '100%',
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -205,10 +260,29 @@ export default function PayrollPage() {
             </div>
           ) : (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12, marginBottom: 16 }}>
+              {/* 4-card summary */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 16 }}>
                 {[
-                  { label: 'Total Gross', value: fmt(totalGross), color: '#1e40af' },
-                  { label: 'Total Net Payout', value: fmt(totalNet), color: '#166534' },
+                  {
+                    label: 'Total Gross',
+                    value: fmt(run.records.reduce((s, r) => s + r.gross_salary, 0)),
+                    color: '#1e40af',
+                  },
+                  {
+                    label: 'Total Net Payout',
+                    value: fmt(run.records.reduce((s, r) => s + calcNetPay(r), 0)),
+                    color: '#166534',
+                  },
+                  {
+                    label: 'Total EPF Employer',
+                    value: fmt(run.records.reduce((s, r) => s + r.epf_employee + r.epf_employer + r.eps_employer, 0)),
+                    color: '#92400e',
+                  },
+                  {
+                    label: 'Total CTC',
+                    value: fmt(run.records.reduce((s, r) => s + r.gross_salary + r.epf_employer + r.eps_employer + r.esic_employer + r.lwf_employer + r.gratuity_provision, 0)),
+                    color: '#374151',
+                  },
                 ].map(c => (
                   <div key={c.label} style={{ background: '#fff', borderRadius: 12, padding: '16px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
                     <p style={{ margin: '0 0 4px', fontSize: 12, color: '#6b7280', fontWeight: 500 }}>{c.label}</p>
@@ -217,95 +291,7 @@ export default function PayrollPage() {
                 ))}
               </div>
 
-              <div style={{ background: '#fff', borderRadius: 14, overflow: 'auto', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1200 }}>
-                  <thead>
-                    <tr style={{ background: '#f9fafb' }}>
-                      {[
-                        'Emp ID', 'Employee Name', 'State', 'Designation',
-                        'Gross Salary', 'Total Days', 'Present Days', 'Leave', 'Absent Days',
-                        'LOP Days', 'LOP Deduction', 'Earned Salary', 'Advance',
-                        'Prof Tax', 'TDS', 'Net Paid',
-                      ].map(h => <th key={h} style={TH_STYLE}>{h}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {run.records.map(r => {
-                      const netGross = r.gross_salary - r.lop_deduction;
-                      const tds      = r.tds_deduction ?? 0;
-                      const netPaid  = netGross - (r.advance_deduction ?? 0) - r.prof_tax - tds;
-                      return (
-                        <tr key={r.id} style={{ borderTop: '1px solid #f3f4f6' }}>
-                          <td style={{ padding: '12px 12px', fontSize: 13, color: '#6b7280', fontFamily: 'monospace' }}>{r.emp_id ?? <span style={{ color: '#d1d5db' }}>—</span>}</td>
-                          <td style={{ padding: '12px 12px', fontSize: 13, fontWeight: 600, color: '#111827', whiteSpace: 'nowrap' }}>{r.employee_name}</td>
-                          <td style={{ padding: '12px 12px', fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap' }}>
-                            {r.employee_state || <span style={{ color: '#d1d5db' }}>—</span>}
-                          </td>
-                          <td style={{ padding: '12px 12px', fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap' }}>{r.employee_designation || r.employee_role}</td>
-                          <td style={{ ...TD_R, color: '#374151' }}>{fmt(r.gross_salary)}</td>
-                          <td style={{ ...TD_R, color: '#374151' }}>{r.working_days}</td>
-                          <td style={{ ...TD_R, color: '#16a34a' }}>{r.present_days}</td>
-                          <td style={{ ...TD_R, color: '#2563eb' }}>{r.leave_days}</td>
-                          <td style={{ ...TD_R, color: '#dc2626' }}>{r.absent_days}</td>
-                          <td style={{ ...TD_R, color: r.lop_days > 0 ? '#991b1b' : '#9ca3af' }}>
-                            {r.lop_days > 0 ? r.lop_days : '—'}
-                          </td>
-                          <td style={{ ...TD_R, color: r.lop_deduction > 0 ? '#991b1b' : '#9ca3af' }}>
-                            {r.lop_deduction > 0 ? fmt(r.lop_deduction) : '—'}
-                          </td>
-                          <td style={{ ...TD_R, fontWeight: 500, color: '#1e40af' }}>{fmt(netGross)}</td>
-                          <td style={{ ...TD_R, color: r.advance_deduction > 0 ? '#7c3aed' : '#9ca3af' }}>
-                            {r.advance_deduction > 0 ? fmt(r.advance_deduction) : '—'}
-                          </td>
-                          <td style={{ ...TD_R, color: r.prof_tax > 0 ? '#6b7280' : '#9ca3af' }}>
-                            {r.prof_tax > 0 ? fmt(r.prof_tax) : '—'}
-                          </td>
-                          <td style={{ ...TD_R, color: tds > 0 ? '#dc2626' : '#9ca3af' }}>
-                            {tds > 0 ? fmt(tds) : '—'}
-                          </td>
-                          <td style={{ ...TD_R, fontWeight: 700, color: netPaid >= 0 ? '#166534' : '#991b1b' }}>{fmt(netPaid)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr style={{ borderTop: '2px solid #e5e7eb', background: '#f9fafb' }}>
-                      <td colSpan={4} style={{ padding: '12px 12px', fontSize: 13, fontWeight: 700, color: '#111827' }}>
-                        Total ({run.records.length} employees)
-                      </td>
-                      <td style={{ ...TD_R, fontWeight: 600, color: '#374151' }}>
-                        {fmt(run.records.reduce((s, r) => s + r.gross_salary, 0))}
-                      </td>
-                      <td /><td /><td /><td />
-                      <td style={{ ...TD_R, fontWeight: 600, color: '#991b1b' }}>
-                        {run.records.reduce((s, r) => s + r.lop_days, 0)}
-                      </td>
-                      <td style={{ ...TD_R, fontWeight: 600, color: '#991b1b' }}>
-                        {fmt(run.records.reduce((s, r) => s + r.lop_deduction, 0))}
-                      </td>
-                      <td style={{ ...TD_R, fontWeight: 700, color: '#1e40af' }}>
-                        {fmt(run.records.reduce((s, r) => s + r.gross_salary - r.lop_deduction, 0))}
-                      </td>
-                      <td style={{ ...TD_R, fontWeight: 600, color: '#7c3aed' }}>
-                        {run.records.some(r => r.advance_deduction > 0)
-                          ? fmt(run.records.reduce((s, r) => s + (r.advance_deduction ?? 0), 0))
-                          : <span style={{ color: '#9ca3af' }}>—</span>}
-                      </td>
-                      <td style={{ ...TD_R, fontWeight: 600, color: '#6b7280' }}>
-                        {fmt(run.records.reduce((s, r) => s + r.prof_tax, 0))}
-                      </td>
-                      <td style={{ ...TD_R, fontWeight: 600, color: '#dc2626' }}>
-                        {run.records.some(r => (r.tds_deduction ?? 0) > 0)
-                          ? fmt(run.records.reduce((s, r) => s + (r.tds_deduction ?? 0), 0))
-                          : <span style={{ color: '#9ca3af' }}>—</span>}
-                      </td>
-                      <td style={{ ...TD_R, fontWeight: 700, color: '#166534' }}>
-                        {fmt(totalNet)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
+              <PayrollCTCTable records={run.records} runId={run.id} />
             </>
           )}
         </div>
