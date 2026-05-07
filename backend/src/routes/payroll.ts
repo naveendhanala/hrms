@@ -748,7 +748,8 @@ router.get('/:runId/payslip/:employeeId', authenticateToken, requireRole('admin'
   const gross = record.basic_salary + record.allowances;
   const earned = gross - record.lop_deduction;
   const totalEmpDeductions = record.epf_employee + record.esic_employee + record.lwf_employee + record.prof_tax + record.tds_deduction + record.advance_deduction + (record.deductions ?? 0);
-  const netSalary = earned - totalEmpDeductions;
+  const arrears = record.arrears ?? 0;
+  const netSalary = earned + arrears - totalEmpDeductions;
   const totalEmployerCost = record.epf_employer + record.eps_employer + record.esic_employer + record.lwf_employer + record.gratuity_provision;
 
   const data: PayslipData = {
@@ -786,6 +787,8 @@ router.get('/:runId/payslip/:employeeId', authenticateToken, requireRole('admin'
     profTax:                 record.prof_tax,
     tdsDeduction:            record.tds_deduction,
     advanceDeduction:        record.advance_deduction,
+    arrears:                 arrears,
+    arrearsLabel:            record.arrears_label ?? '',
     netSalary,
     epfEmployer:             record.epf_employer,
     epsEmployer:             record.eps_employer,

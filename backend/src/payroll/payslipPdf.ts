@@ -36,6 +36,8 @@ export interface PayslipData {
   profTax: number;
   tdsDeduction: number;
   advanceDeduction: number;
+  arrears: number;
+  arrearsLabel: string;
   netSalary: number;
   epfEmployer: number;
   epsEmployer: number;
@@ -130,6 +132,10 @@ export function streamPayslipPdf(data: PayslipData, res: Response): void {
     ['LOP Deduction',        -data.lopDeduction],
     ['Earned Salary',        data.earnedSalary],
   ];
+  if (data.arrears !== 0) {
+    const label = data.arrearsLabel ? `Salary Arrears (${data.arrearsLabel})` : 'Salary Arrears';
+    earningsRows.push([label, data.arrears]);
+  }
   const deductRows: [string, number | null][] = [
     ['EPF (12% of Basic)',   data.epfEmployee],
     ['ESIC (0.75%)',         data.esicApplicable ? data.esicEmployee : null],
