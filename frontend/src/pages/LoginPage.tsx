@@ -4,7 +4,6 @@ import { useAuth, ROLE_ROUTES } from '../context/AuthContext';
 import { login } from '../api/auth';
 
 const DEMO_ACCOUNTS = [
-  { username: 'admin', password: 'admin123', label: 'Admin' },
   { username: 'ravindra', password: 'hr123', label: 'HR (Ravindra)' },
   { username: 'director', password: 'dir123', label: 'Director' },
   { username: 'projectlead', password: 'lead123', label: 'Project Lead' },

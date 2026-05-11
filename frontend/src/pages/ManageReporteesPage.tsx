@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import AppLayout from '../components/shared/AppLayout';
 import { getMyReportees, type Reportee } from '../api/users';
-import { getTeamExits, managerAccept, setReplacement, type ExitRequest } from '../api/exit';
+import { getTeamExits, managerAccept, setReplacement, vpAccept, getAllExits, type ExitRequest } from '../api/exit';
 import { createPosition } from '../api/ats-positions';
 import { useAuth } from '../context/AuthContext';
 
@@ -36,7 +36,7 @@ function fmtDate(d: string) {
 
 export default function ManageReporteesPage() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<'reportees' | 'exit'>('reportees');
+  const [tab, setTab] = useState<'reportees' | 'exit'>('exit');
   const [reportees, setReportees] = useState<Reportee[]>([]);
   const [exits, setExits] = useState<ExitRequest[]>([]);
   const [loadingReportees, setLoadingReportees] = useState(true);
@@ -44,11 +44,30 @@ export default function ManageReporteesPage() {
   const [accepting, setAccepting] = useState<number | null>(null);
   const [replacementForm, setReplacementForm] = useState<ReplacementForm | null>(null);
   const [submittingReplacement, setSubmittingReplacement] = useState(false);
+  const [allExits, setAllExits] = useState<ExitRequest[]>([]);
+  const [loadingAllExits, setLoadingAllExits] = useState(false);
+  const [acceptingVp, setAcceptingVp] = useState<number | null>(null);
 
   useEffect(() => {
     getMyReportees().then(setReportees).finally(() => setLoadingReportees(false));
     getTeamExits().then(setExits).finally(() => setLoadingExits(false));
+    if (user?.role === 'vp_hr') {
+      setLoadingAllExits(true);
+      getAllExits().then(setAllExits).finally(() => setLoadingAllExits(false));
+    }
   }, []);
+
+  const handleVpAccept = async (id: number) => {
+    setAcceptingVp(id);
+    try {
+      await vpAccept(id);
+      setAllExits(prev => prev.map(e => e.id === id ? { ...e, status: 'approved' as const } : e));
+    } catch (e: any) {
+      alert(e.message || 'Failed to approve.');
+    } finally {
+      setAcceptingVp(null);
+    }
+  };
 
   const handleAccept = async (id: number) => {
     setAccepting(id);
@@ -102,21 +121,22 @@ export default function ManageReporteesPage() {
     }
   };
 
-  const pendingCount = exits.filter(e => e.status === 'pending_manager').length;
+  const pendingVpExits = allExits.filter(e => e.status === 'pending_vp');
+  const otherExits = allExits.filter(e => e.status !== 'pending_vp');
+  const pendingCount = user?.role === 'vp_hr'
+    ? pendingVpExits.length
+    : exits.filter(e => e.status === 'pending_manager').length;
 
   return (
     <AppLayout>
       <div style={{ maxWidth: 1100 }}>
         <div style={{ marginBottom: 20 }}>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#111827' }}>Manage Reportees</h2>
-          <p style={{ margin: '4px 0 0', fontSize: 14, color: '#6b7280' }}>
-            {reportees.length} direct report{reportees.length !== 1 ? 's' : ''}
-          </p>
         </div>
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid #e5e7eb' }}>
-          {([['reportees', 'Reportees'], ['exit', `Exit Requests${pendingCount > 0 ? ` (${pendingCount})` : ''}`]] as const).map(([key, label]) => (
+          {([['exit', `Exit Requests${pendingCount > 0 ? ` (${pendingCount})` : ''}`], ['reportees', 'Reportees']] as const).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)} style={{
               padding: '8px 18px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14,
               fontWeight: tab === key ? 600 : 500, color: tab === key ? '#6d28d9' : '#6b7280',
@@ -178,8 +198,106 @@ export default function ManageReporteesPage() {
               </table>
             </div>
           )
+        ) : user?.role === 'vp_hr' ? (
+          /* VP-HR exit view: all company exits */
+          loadingAllExits ? (
+            <div style={{ padding: 40, color: '#9ca3af', fontSize: 14 }}>Loading…</div>
+          ) : allExits.length === 0 ? (
+            <div style={{ padding: 48, textAlign: 'center', background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', color: '#6b7280', fontSize: 14 }}>
+              No exit requests found.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              {pendingVpExits.length > 0 && (
+                <div>
+                  <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 700, color: '#374151' }}>
+                    Pending Final Approval ({pendingVpExits.length})
+                  </h3>
+                  <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                      <thead>
+                        <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+                          {['Employee', 'Reporting Manager', 'Submitted', 'Notice Period', 'Last Working Day', 'Reason', ''].map(h => (
+                            <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#374151', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pendingVpExits.map((ex, i) => (
+                          <tr key={ex.id} style={{ borderBottom: i < pendingVpExits.length - 1 ? '1px solid #f3f4f6' : 'none' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                            <td style={{ padding: '12px 16px' }}>
+                              <div style={{ fontWeight: 600, color: '#111827' }}>{ex.employee_name}</div>
+                              <div style={{ fontSize: 12, color: '#9ca3af' }}>{ex.designation} {ex.emp_id ? `· ${ex.emp_id}` : ''}</div>
+                            </td>
+                            <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 13 }}>{ex.reporting_manager_name || '—'}</td>
+                            <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 13 }}>{fmtDate(ex.submitted_at)}</td>
+                            <td style={{ padding: '12px 16px', color: '#374151', fontSize: 13 }}>{ex.notice_period_days} days</td>
+                            <td style={{ padding: '12px 16px', fontWeight: 600, color: '#92400e', fontSize: 13 }}>{fmtDate(ex.last_working_day)}</td>
+                            <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 13, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ex.reason || '—'}</td>
+                            <td style={{ padding: '12px 16px' }}>
+                              <button
+                                onClick={() => handleVpAccept(ex.id)}
+                                disabled={acceptingVp === ex.id}
+                                style={{ padding: '5px 14px', borderRadius: 6, border: 'none', background: '#16a34a', color: '#fff', fontWeight: 600, fontSize: 12, cursor: 'pointer', opacity: acceptingVp === ex.id ? 0.6 : 1 }}
+                              >
+                                {acceptingVp === ex.id ? 'Approving…' : 'Approve'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {otherExits.length > 0 && (
+                <div>
+                  <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 700, color: '#374151' }}>
+                    Exit History ({otherExits.length})
+                  </h3>
+                  <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                      <thead>
+                        <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+                          {['Employee', 'Reporting Manager', 'Submitted', 'Last Working Day', 'Status'].map(h => (
+                            <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#374151', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {otherExits.map((ex, i) => {
+                          const st = STATUS_LABELS[ex.status] ?? STATUS_LABELS.pending_manager;
+                          return (
+                            <tr key={ex.id} style={{ borderBottom: i < otherExits.length - 1 ? '1px solid #f3f4f6' : 'none' }}
+                              onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                              <td style={{ padding: '12px 16px' }}>
+                                <div style={{ fontWeight: 600, color: '#111827' }}>{ex.employee_name}</div>
+                                <div style={{ fontSize: 12, color: '#9ca3af' }}>{ex.designation} {ex.emp_id ? `· ${ex.emp_id}` : ''}</div>
+                              </td>
+                              <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 13 }}>{ex.reporting_manager_name || '—'}</td>
+                              <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 13 }}>{fmtDate(ex.submitted_at)}</td>
+                              <td style={{ padding: '12px 16px', fontWeight: 600, color: '#92400e', fontSize: 13 }}>{fmtDate(ex.last_working_day)}</td>
+                              <td style={{ padding: '12px 16px' }}>
+                                <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 500, background: st.bg, color: st.color }}>
+                                  {st.label}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
         ) : (
-          /* Exit Requests tab */
+          /* Manager / other roles: team exits only */
           loadingExits ? (
             <div style={{ padding: 40, color: '#9ca3af', fontSize: 14 }}>Loading…</div>
           ) : exits.length === 0 ? (

@@ -80,6 +80,7 @@ export default function Dashboard() {
   const [bdLoading, setBdLoading] = useState(true);
   const [annError, setAnnError] = useState(false);
   const [bdError, setBdError] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -113,7 +114,13 @@ export default function Dashboard() {
   }
 
   async function handleDelete(id: number) {
-    if (!window.confirm('Delete this announcement? This cannot be undone.')) return;
+    setDeleteTarget(id);
+  }
+
+  async function confirmDelete() {
+    if (deleteTarget === null) return;
+    const id = deleteTarget;
+    setDeleteTarget(null);
     try {
       await apiFetch(`/api/announcements/${id}`, { method: 'DELETE' });
       setAnnouncements(prev => prev.filter(a => a.id !== id));
@@ -216,7 +223,7 @@ export default function Dashboard() {
         {/* Birthday anniversaries */}
         <div style={{ background: '#ffffff', borderRadius: 14, padding: '20px 22px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
-            <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#111827' }}>Birthday Anniversaries</h2>
+            <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#111827' }}>Birthdays</h2>
             <span style={{ fontSize: 13, color: '#9ca3af', fontWeight: 400 }}>· next 30 days</span>
           </div>
 
@@ -260,6 +267,41 @@ export default function Dashboard() {
         </div>
 
       </div>
+
+      {/* Custom delete confirmation modal */}
+      {deleteTarget !== null && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.35)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 14, padding: '28px 28px 22px',
+            width: 360, boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+          }}>
+            <h3 style={{ margin: '0 0 10px', fontSize: 16, fontWeight: 600, color: '#111827' }}>Delete Announcement</h3>
+            <p style={{ margin: '0 0 22px', fontSize: 14, color: '#6b7280' }}>
+              Are you sure you want to delete this announcement? This cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                style={{
+                  padding: '8px 18px', borderRadius: 8, border: '1px solid #e5e7eb',
+                  background: '#fff', color: '#374151', fontSize: 14, fontWeight: 500, cursor: 'pointer',
+                }}
+              >Cancel</button>
+              <button
+                onClick={confirmDelete}
+                style={{
+                  padding: '8px 18px', borderRadius: 8, border: 'none',
+                  background: '#dc2626', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                }}
+              >Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

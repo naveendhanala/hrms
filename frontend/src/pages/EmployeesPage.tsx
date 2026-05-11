@@ -162,7 +162,7 @@ export default function EmployeesPage() {
   const pendingVpExits = exits.filter(e => e.status === 'pending_vp');
   const otherExits = exits.filter(e => e.status !== 'pending_vp');
 
-  const canSeeExitTab = user?.role === 'vp_hr' || user?.role === 'admin' || user?.role === 'hr';
+  const canSeeExitTab = user?.role === 'admin' || user?.role === 'hr';
 
   const visibleTabs: Array<['list' | 'permissions' | 'exit', string]> = [
     ['list', 'All Employees'],
